@@ -20007,29 +20007,31 @@ ${suffix}`;
       document.removeEventListener("mouseover", this.handleElementHover.bind(this));
       document.removeEventListener("mouseout", this.handleElementHoverOut.bind(this));
     }
+    isVibeElement(el) {
+      return !!(el.closest("#vibe-overlay") || el.closest("[data-vibe-modal]") || el.closest("#vibe-preview-banner") || el.closest("[data-vibe-toolbar]"));
+    }
     handleElementClick(event) {
       const target = event.target;
-      if (target.closest("#vibe-overlay")) {
-        return;
-      }
+      if (this.isVibeElement(target)) return;
       event.preventDefault();
       event.stopPropagation();
       this.showCommentModal(target, event.clientX, event.clientY);
     }
     handleElementHover(event) {
       const target = event.target;
-      if (target.closest("#vibe-overlay")) return;
+      if (this.isVibeElement(target)) return;
       target.style.outline = "2px solid #3b82f6";
       target.style.outlineOffset = "2px";
     }
     handleElementHoverOut(event) {
       const target = event.target;
-      if (target.closest("#vibe-overlay")) return;
+      if (this.isVibeElement(target)) return;
       target.style.outline = "";
       target.style.outlineOffset = "";
     }
     showCommentModal(element, x, y) {
       const modal = document.createElement("div");
+      modal.setAttribute("data-vibe-modal", "true");
       modal.style.cssText = `
       position: fixed;
       top: 50%;
@@ -20250,6 +20252,7 @@ ${suffix}`;
     }
     showCommentDetails(comment) {
       const modal = document.createElement("div");
+      modal.setAttribute("data-vibe-modal", "true");
       modal.style.cssText = `
       position: fixed;
       top: 50%;

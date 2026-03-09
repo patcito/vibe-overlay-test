@@ -192,6 +192,7 @@ declare class OverlayModule {
     private createOverlay;
     private attachEventListeners;
     private removeEventListeners;
+    private isVibeElement;
     private handleElementClick;
     private handleElementHover;
     private handleElementHoverOut;
