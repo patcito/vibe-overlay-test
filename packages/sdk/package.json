@@ -1,0 +1,34 @@
+{
+  "name": "@vibe-viewer/sdk",
+  "version": "0.1.0",
+  "description": "Embeddable SDK for Vibe Viewer agentic overlay",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "browser": "dist/index.global.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.0.0",
+    "html2canvas": "^1.4.0"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0"
+  },
+  "tsup": {
+    "entry": ["src/index.ts"],
+    "format": ["cjs", "esm", "iife"],
+    "dts": true,
+    "sourcemap": true,
+    "clean": true,
+    "globalName": "VibeSDK",
+    "external": ["@supabase/supabase-js", "html2canvas"]
+  }
+}
