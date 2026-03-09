@@ -29,6 +29,6 @@
     "sourcemap": true,
     "clean": true,
     "globalName": "VibeSDK",
-    "external": ["@supabase/supabase-js", "html2canvas"]
+    "noExternal": ["@supabase/supabase-js", "html2canvas"]
   }
 }
