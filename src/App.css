@@ -1,0 +1,95 @@
+.title {
+  font-size: 3.2em;
+  line-height: 1.1;
+  margin-bottom: 0.5rem;
+}
+
+.subtitle {
+  font-size: 1.2em;
+  margin-bottom: 2rem;
+  opacity: 0.8;
+}
+
+.card {
+  padding: 2em;
+  margin: 2rem 0;
+  border: 1px solid #666;
+  border-radius: 8px;
+  background: #1a1a1a;
+}
+
+.primary-button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #1a1a1a;
+  color: white;
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+
+.primary-button:hover {
+  border-color: #646cff;
+}
+
+.primary-button:focus,
+.primary-button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+.description {
+  margin-top: 1rem;
+  opacity: 0.8;
+}
+
+.features {
+  margin: 3rem 0;
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+  margin: 2rem 0;
+}
+
+.feature-card {
+  padding: 1.5rem;
+  border-radius: 8px;
+  text-align: center;
+  color: white;
+}
+
+.feature-card.blue {
+  background-color: #3b82f6;
+}
+
+.feature-card.green {
+  background-color: #10b981;
+}
+
+.feature-card.red {
+  background-color: #ef4444;
+}
+
+.footer {
+  margin-top: 4rem;
+  padding: 2rem;
+  border-top: 1px solid #666;
+  opacity: 0.6;
+}
+
+@media (prefers-color-scheme: light) {
+  .card {
+    background: #f9f9f9;
+    border-color: #ccc;
+  }
+
+  .primary-button {
+    background-color: #f9f9f9;
+    color: #213547;
+  }
+}
