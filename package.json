@@ -9,7 +9,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@vibe-viewer/sdk": "file:./packages/sdk",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
