@@ -11907,6 +11907,2165 @@ ${suffix}`;
     return { name, version: version5 };
   }
 
+  // src/preview.ts
+  var PreviewModule = class {
+    constructor() {
+      this.previews = /* @__PURE__ */ new Map();
+      this.isActive = false;
+    }
+    init() {
+      if (this.isActive) return;
+      this.detectExistingPreviews();
+      this.setupMutationObserver();
+      this.isActive = true;
+    }
+    destroy() {
+      if (this.observer) {
+        this.observer.disconnect();
+        this.observer = void 0;
+      }
+      this.previews.forEach((preview) => this.cleanupPreview(preview));
+      this.previews.clear();
+      this.isActive = false;
+    }
+    detectExistingPreviews() {
+      const previewElements = document.querySelectorAll("[data-preview-comment], Preview");
+      previewElements.forEach((element) => {
+        this.processPreviewElement(element);
+      });
+    }
+    setupMutationObserver() {
+      this.observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          mutation.addedNodes.forEach((node) => {
+            if (node.nodeType === Node.ELEMENT_NODE) {
+              const element = node;
+              if (this.isPreviewElement(element)) {
+                this.processPreviewElement(element);
+              }
+              const previewsInside = element.querySelectorAll?.("[data-preview-comment], Preview");
+              previewsInside?.forEach((preview) => {
+                this.processPreviewElement(preview);
+              });
+            }
+          });
+          mutation.removedNodes.forEach((node) => {
+            if (node.nodeType === Node.ELEMENT_NODE) {
+              const element = node;
+              if (element.hasAttribute?.("data-preview-comment")) {
+                const commentId = element.getAttribute("data-preview-comment");
+                this.removePreview(commentId);
+              }
+            }
+          });
+        });
+      });
+      this.observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["data-preview-comment"]
+      });
+    }
+    isPreviewElement(element) {
+      return element.tagName === "PREVIEW" || element.hasAttribute("data-preview-comment");
+    }
+    processPreviewElement(element) {
+      let commentId = null;
+      if (element.tagName === "PREVIEW") {
+        commentId = element.getAttribute("commentId");
+      }
+      if (element.hasAttribute("data-preview-comment")) {
+        commentId = element.getAttribute("data-preview-comment");
+      }
+      if (!commentId) return;
+      if (this.previews.has(commentId)) return;
+      this.addPreviewHighlight(element, commentId);
+    }
+    addPreviewHighlight(element, commentId) {
+      const wrapper = document.createElement("div");
+      wrapper.style.cssText = `
+      position: relative;
+      outline: 2px solid #10b981;
+      outline-offset: 2px;
+      border-radius: 4px;
+      animation: previewPulse 2s infinite;
+    `;
+      if (!document.getElementById("vibe-preview-styles")) {
+        const styles = document.createElement("style");
+        styles.id = "vibe-preview-styles";
+        styles.textContent = `
+        @keyframes previewPulse {
+          0%, 100% { outline-color: #10b981; }
+          50% { outline-color: #6ee7b7; }
+        }
+        .vibe-preview-badge {
+          transition: all 0.2s ease;
+        }
+        .vibe-preview-badge:hover {
+          transform: scale(1.1);
+        }
+        .vibe-preview-tooltip {
+          opacity: 0;
+          pointer-events: none;
+          transition: opacity 0.2s ease;
+        }
+        .vibe-preview-tooltip.show {
+          opacity: 1;
+          pointer-events: auto;
+        }
+      `;
+        document.head.appendChild(styles);
+      }
+      if (element.parentNode) {
+        element.parentNode.insertBefore(wrapper, element);
+        wrapper.appendChild(element);
+      }
+      const badge = this.createCommentBadge(commentId);
+      wrapper.appendChild(badge);
+      const tooltip = this.createHoverTooltip(commentId);
+      wrapper.appendChild(tooltip);
+      const preview = {
+        element,
+        commentId,
+        wrapper,
+        badge,
+        tooltip
+      };
+      this.previews.set(commentId, preview);
+      this.setupHoverEvents(preview);
+    }
+    createCommentBadge(commentId) {
+      const badge = document.createElement("div");
+      badge.className = "vibe-preview-badge";
+      badge.style.cssText = `
+      position: absolute;
+      top: -12px;
+      right: -12px;
+      width: 24px;
+      height: 24px;
+      background: #10b981;
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: bold;
+      cursor: pointer;
+      z-index: 999998;
+      border: 2px solid white;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    `;
+      badge.textContent = "\u{1F441}";
+      badge.title = `Preview for comment #${commentId}`;
+      badge.addEventListener("click", () => {
+        this.openCommentThread(commentId);
+      });
+      return badge;
+    }
+    createHoverTooltip(commentId) {
+      const tooltip = document.createElement("div");
+      tooltip.className = "vibe-preview-tooltip";
+      tooltip.style.cssText = `
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1f2937;
+      color: white;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      white-space: nowrap;
+      z-index: 999999;
+      margin-bottom: 8px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    `;
+      const arrow = document.createElement("div");
+      arrow.style.cssText = `
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 5px solid transparent;
+      border-right: 5px solid transparent;
+      border-top: 5px solid #1f2937;
+    `;
+      tooltip.appendChild(arrow);
+      tooltip.innerHTML = `
+      <div>Preview: Comment #${commentId}</div>
+      <div style="font-size: 10px; opacity: 0.8; margin-top: 4px;">Click badge to view details</div>
+      ${arrow.outerHTML}
+    `;
+      return tooltip;
+    }
+    setupHoverEvents(preview) {
+      if (!preview.wrapper || !preview.tooltip) return;
+      preview.wrapper.addEventListener("mouseenter", () => {
+        preview.tooltip?.classList.add("show");
+      });
+      preview.wrapper.addEventListener("mouseleave", () => {
+        preview.tooltip?.classList.remove("show");
+      });
+    }
+    openCommentThread(commentId) {
+      const event = new CustomEvent("vibe:openComment", {
+        detail: { commentId }
+      });
+      window.dispatchEvent(event);
+      const commentPin = document.querySelector(`[data-comment-id="${commentId}"]`);
+      if (commentPin) {
+        commentPin.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
+    removePreview(commentId) {
+      const preview = this.previews.get(commentId);
+      if (!preview) return;
+      this.cleanupPreview(preview);
+      this.previews.delete(commentId);
+    }
+    cleanupPreview(preview) {
+      try {
+        if (preview.wrapper && preview.wrapper.parentNode && preview.element) {
+          preview.wrapper.parentNode.insertBefore(preview.element, preview.wrapper);
+          preview.wrapper.parentNode.removeChild(preview.wrapper);
+        }
+      } catch (error) {
+        console.warn("Error cleaning up preview element:", error);
+      }
+    }
+    // Public method to get all detected previews
+    getPreviews() {
+      return Array.from(this.previews.values());
+    }
+    // Public method to check if preview mode should be active
+    static shouldActivatePreviewMode() {
+      const url = window.location.href;
+      const pathname = window.location.pathname;
+      const previewPatterns = [
+        /\/preview\//,
+        // /preview/comment-123
+        /-preview-/,
+        // branch-preview-abc123
+        /\.preview\./,
+        // subdomain.preview.domain.com
+        /pr-\d+/,
+        // pr-123.vercel.app
+        /comment-\d+/
+        // comment-123.vercel.app
+      ];
+      return previewPatterns.some((pattern) => pattern.test(url) || pattern.test(pathname));
+    }
+    // Public method to extract comment ID from URL
+    static getCommentIdFromUrl() {
+      const url = window.location.href;
+      const pathname = window.location.pathname;
+      const commentMatch = url.match(/comment[/-](\d+)/) || pathname.match(/comment[/-](\d+)/) || url.match(/preview[/-](\d+)/) || pathname.match(/preview[/-](\d+)/);
+      return commentMatch ? commentMatch[1] : null;
+    }
+  };
+
+  // src/overlay.ts
+  var OverlayModule = class {
+    constructor(supabase, projectId) {
+      this.comments = [];
+      this.isActive = false;
+      this.commentMode = false;
+      this.isPreviewMode = false;
+      this.previewCommentId = null;
+      this.supabase = supabase;
+      this.projectId = projectId;
+      this.previewModule = new PreviewModule();
+      this.isPreviewMode = PreviewModule.shouldActivatePreviewMode();
+      this.previewCommentId = PreviewModule.getCommentIdFromUrl();
+      this.boundHandleClick = this.handleElementClick.bind(this);
+      this.boundHandleHover = this.handleElementHover.bind(this);
+      this.boundHandleHoverOut = this.handleElementHoverOut.bind(this);
+    }
+    async init() {
+      if (this.isActive) return;
+      this.injectStyles();
+      this.createOverlay();
+      this.createCommentButton();
+      if (this.isPreviewMode) {
+        this.previewModule.init();
+        this.createPreviewBanner();
+      }
+      this.attachEventListeners();
+      await this.loadComments();
+      this.renderCommentPins();
+      this.isActive = true;
+    }
+    destroy() {
+      if (this.overlay) {
+        document.body.removeChild(this.overlay);
+        this.overlay = void 0;
+      }
+      if (this.highlight) {
+        document.body.removeChild(this.highlight);
+        this.highlight = void 0;
+      }
+      if (this.commentBtn) {
+        document.body.removeChild(this.commentBtn);
+        this.commentBtn = void 0;
+      }
+      if (this.previewBanner) {
+        document.body.removeChild(this.previewBanner);
+        this.previewBanner = void 0;
+      }
+      if (this.previewModule) {
+        this.previewModule.destroy();
+      }
+      this.removeEventListeners();
+      this.isActive = false;
+    }
+    createOverlay() {
+      this.overlay = document.createElement("div");
+      this.overlay.id = "vibe-overlay";
+      this.overlay.setAttribute("data-vibe", "true");
+      this.overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 999999;
+    `;
+      document.body.appendChild(this.overlay);
+      this.highlight = document.createElement("div");
+      this.highlight.id = "vibe-highlight";
+      this.highlight.setAttribute("data-vibe", "true");
+      this.highlight.style.cssText = `
+      position: fixed;
+      pointer-events: none;
+      z-index: 10000000;
+      border: 2px solid #3b82f6;
+      border-radius: 2px;
+      background: rgba(59, 130, 246, 0.08);
+      display: none;
+      transition: top 0.05s, left 0.05s, width 0.05s, height 0.05s;
+    `;
+      document.body.appendChild(this.highlight);
+    }
+    createCommentButton() {
+      this.commentBtn = document.createElement("div");
+      this.commentBtn.id = "vibe-comment-btn";
+      this.commentBtn.setAttribute("data-vibe", "true");
+      this.commentBtn.style.cssText = `
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #3b82f6, #6366f1);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 999999;
+      box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4), 0 0 0 1px rgba(255,255,255,0.1) inset;
+      transition: transform 0.15s, box-shadow 0.15s;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    `;
+      this.commentBtn.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`;
+      this.commentBtn.addEventListener("mouseenter", () => {
+        this.commentBtn.style.transform = "scale(1.08)";
+        this.commentBtn.style.boxShadow = "0 6px 24px rgba(99, 102, 241, 0.5), 0 0 0 1px rgba(255,255,255,0.15) inset";
+      });
+      this.commentBtn.addEventListener("mouseleave", () => {
+        this.commentBtn.style.transform = "scale(1)";
+        this.commentBtn.style.boxShadow = "0 4px 16px rgba(99, 102, 241, 0.4), 0 0 0 1px rgba(255,255,255,0.1) inset";
+      });
+      this.commentBtn.addEventListener("click", () => {
+        this.toggleCommentMode();
+      });
+      document.body.appendChild(this.commentBtn);
+    }
+    toggleCommentMode() {
+      this.commentMode = !this.commentMode;
+      this.updateCommentButtonState();
+      if (!this.commentMode) {
+        this.hideHighlight();
+      }
+    }
+    setCommentMode(on) {
+      this.commentMode = on;
+      this.updateCommentButtonState();
+      if (!on) {
+        this.hideHighlight();
+      }
+    }
+    updateCommentButtonState() {
+      if (!this.commentBtn) return;
+      if (this.commentMode) {
+        this.commentBtn.style.background = "linear-gradient(135deg, #ef4444, #f97316)";
+        this.commentBtn.style.boxShadow = "0 4px 16px rgba(239, 68, 68, 0.5), 0 0 0 1px rgba(255,255,255,0.1) inset";
+        this.commentBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+        document.body.style.cursor = "crosshair";
+      } else {
+        this.commentBtn.style.background = "linear-gradient(135deg, #3b82f6, #6366f1)";
+        this.commentBtn.style.boxShadow = "0 4px 16px rgba(99, 102, 241, 0.4), 0 0 0 1px rgba(255,255,255,0.1) inset";
+        this.commentBtn.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`;
+        document.body.style.cursor = "";
+      }
+    }
+    attachEventListeners() {
+      document.addEventListener("click", this.boundHandleClick, true);
+      document.addEventListener("mouseover", this.boundHandleHover);
+      document.addEventListener("mouseout", this.boundHandleHoverOut);
+    }
+    removeEventListeners() {
+      document.removeEventListener("click", this.boundHandleClick, true);
+      document.removeEventListener("mouseover", this.boundHandleHover);
+      document.removeEventListener("mouseout", this.boundHandleHoverOut);
+    }
+    isVibeElement(el) {
+      return !!(el.closest("[data-vibe]") || el.closest("[data-vibe-modal]"));
+    }
+    handleElementClick(event) {
+      if (!this.commentMode) return;
+      const target = event.target;
+      if (this.isVibeElement(target)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      this.setCommentMode(false);
+      this.showCommentModal(target, event.clientX, event.clientY);
+    }
+    handleElementHover(event) {
+      if (!this.commentMode || !this.highlight) return;
+      const target = event.target;
+      if (this.isVibeElement(target)) {
+        this.hideHighlight();
+        return;
+      }
+      const rect = target.getBoundingClientRect();
+      this.highlight.style.display = "block";
+      this.highlight.style.top = `${rect.top}px`;
+      this.highlight.style.left = `${rect.left}px`;
+      this.highlight.style.width = `${rect.width}px`;
+      this.highlight.style.height = `${rect.height}px`;
+    }
+    handleElementHoverOut(event) {
+      if (!this.commentMode) return;
+      const related = event.relatedTarget;
+      if (!related || related === document.documentElement) {
+        this.hideHighlight();
+      }
+    }
+    hideHighlight() {
+      if (this.highlight) {
+        this.highlight.style.display = "none";
+      }
+    }
+    showCommentModal(element, clickX, clickY) {
+      const modalWidth = 380;
+      const modalHeight = 260;
+      const padding = 12;
+      let left = clickX;
+      let top = clickY + padding;
+      if (left + modalWidth > window.innerWidth - padding) {
+        left = window.innerWidth - modalWidth - padding;
+      }
+      if (left < padding) left = padding;
+      if (top + modalHeight > window.innerHeight - padding) {
+        top = clickY - modalHeight - padding;
+      }
+      if (top < padding) top = padding;
+      const modal = document.createElement("div");
+      modal.setAttribute("data-vibe-modal", "true");
+      modal.style.cssText = `
+      position: fixed;
+      left: ${left}px;
+      top: ${top}px;
+      width: ${modalWidth}px;
+      z-index: 10000001;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15), 0 4px 12px rgba(0, 0, 0, 0.1);
+      animation: vibe-scale-in 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+    `;
+      const selectorPreview = this.getElementSelector(element);
+      const shortSelector = selectorPreview.length > 40 ? "..." + selectorPreview.slice(-37) : selectorPreview;
+      const form = document.createElement("form");
+      const header = document.createElement("div");
+      header.style.cssText = "display: flex; align-items: center; gap: 8px; margin-bottom: 12px;";
+      const icon = document.createElement("div");
+      icon.style.cssText = "width: 28px; height: 28px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;";
+      icon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+      const title = document.createElement("span");
+      title.style.cssText = "font-size: 14px; font-weight: 600; color: #1a1a2e;";
+      title.textContent = "Add comment";
+      header.appendChild(icon);
+      header.appendChild(title);
+      form.appendChild(header);
+      const textarea = document.createElement("textarea");
+      textarea.placeholder = "Describe the change you'd like to see...";
+      textarea.required = true;
+      textarea.style.cssText = `
+      width: 100%; height: 80px; padding: 10px 12px;
+      background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+      resize: none; margin-bottom: 12px; box-sizing: border-box;
+      font-family: inherit; font-size: 13px; color: #1a1a2e;
+      outline: none; line-height: 1.5;
+    `;
+      textarea.addEventListener("focus", () => {
+        textarea.style.borderColor = "#6366f1";
+        textarea.style.boxShadow = "0 0 0 3px rgba(99,102,241,0.15)";
+      });
+      textarea.addEventListener("blur", () => {
+        textarea.style.borderColor = "#e2e8f0";
+        textarea.style.boxShadow = "none";
+      });
+      form.appendChild(textarea);
+      const selectorEl = document.createElement("div");
+      selectorEl.style.cssText = "margin-bottom: 12px; font-size: 10px; color: #94a3b8; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;";
+      selectorEl.textContent = shortSelector;
+      form.appendChild(selectorEl);
+      const btnRow = document.createElement("div");
+      btnRow.style.cssText = "display: flex; gap: 8px;";
+      const submitBtn = document.createElement("button");
+      submitBtn.type = "submit";
+      submitBtn.textContent = "Post";
+      submitBtn.style.cssText = `
+      flex: 1; padding: 9px; background: linear-gradient(135deg, #3b82f6, #6366f1);
+      color: white; border: none; border-radius: 8px; cursor: pointer;
+      font-size: 13px; font-weight: 500;
+    `;
+      const cancelBtn = document.createElement("button");
+      cancelBtn.type = "button";
+      cancelBtn.textContent = "Cancel";
+      cancelBtn.style.cssText = `
+      padding: 9px 16px; background: #f1f5f9; border: 1px solid #e2e8f0;
+      color: #64748b; border-radius: 8px; cursor: pointer; font-size: 13px;
+    `;
+      btnRow.appendChild(submitBtn);
+      btnRow.appendChild(cancelBtn);
+      form.appendChild(btnRow);
+      modal.appendChild(form);
+      const closeModal = () => {
+        document.removeEventListener("keydown", onEsc);
+        document.removeEventListener("mousedown", onClickOutside);
+        if (modal.parentNode) modal.parentNode.removeChild(modal);
+        this.setCommentMode(true);
+      };
+      form.addEventListener("submit", async (e2) => {
+        e2.preventDefault();
+        const content2 = textarea.value;
+        submitBtn.textContent = "Posting...";
+        submitBtn.disabled = true;
+        await this.createComment(element, content2, clickX, clickY);
+        document.removeEventListener("keydown", onEsc);
+        document.removeEventListener("mousedown", onClickOutside);
+        if (modal.parentNode) modal.parentNode.removeChild(modal);
+        this.setCommentMode(true);
+      });
+      cancelBtn.addEventListener("click", closeModal);
+      const onEsc = (e2) => {
+        if (e2.key === "Escape") closeModal();
+      };
+      document.addEventListener("keydown", onEsc);
+      const onClickOutside = (e2) => {
+        if (!modal.contains(e2.target)) closeModal();
+      };
+      setTimeout(() => {
+        document.addEventListener("mousedown", onClickOutside);
+      }, 100);
+      document.body.appendChild(modal);
+      textarea.focus();
+    }
+    async createComment(element, body, clickX, clickY) {
+      try {
+        const selector = this.getElementSelector(element);
+        const xpath = this.getElementXPath(element);
+        const parentChain = this.getElementParentChain(element);
+        const metadata = captureMetadata();
+        const { data, error } = await this.supabase.from("comments").insert({
+          project_id: this.projectId,
+          page_id: null,
+          body,
+          pin_x: clickX,
+          pin_y: clickY,
+          parent_id: null,
+          element_selector: selector,
+          element_xpath: xpath,
+          element_parent_chain: parentChain,
+          page_path: window.location.pathname,
+          metadata
+        }).select().single();
+        if (error) throw error;
+        data.replies = [];
+        this.comments.push(data);
+        this.renderCommentPins();
+      } catch (error) {
+        console.error("Error creating comment:", error);
+      }
+    }
+    getElementSelector(element) {
+      const path = [];
+      let current = element;
+      while (current && current !== document.body) {
+        let selector = current.tagName.toLowerCase();
+        if (current.id) {
+          selector += `#${current.id}`;
+          path.unshift(selector);
+          break;
+        }
+        if (current.className && typeof current.className === "string") {
+          const classes = current.className.split(" ").filter(Boolean);
+          if (classes.length > 0) {
+            selector += "." + classes.join(".");
+          }
+        }
+        const siblings = Array.from(current.parentElement?.children || []).filter((sibling) => sibling.tagName === current.tagName);
+        if (siblings.length > 1) {
+          const index = siblings.indexOf(current);
+          selector += `:nth-of-type(${index + 1})`;
+        }
+        path.unshift(selector);
+        current = current.parentElement;
+      }
+      return path.join(" > ");
+    }
+    getElementXPath(element) {
+      const path = [];
+      let current = element;
+      while (current && current !== document.body) {
+        let index = 1;
+        let sibling = current.previousElementSibling;
+        while (sibling) {
+          if (sibling.tagName === current.tagName) index++;
+          sibling = sibling.previousElementSibling;
+        }
+        path.unshift(`${current.tagName.toLowerCase()}[${index}]`);
+        current = current.parentElement;
+      }
+      return "/" + path.join("/");
+    }
+    getElementParentChain(element) {
+      const chain = [];
+      let current = element.parentElement;
+      while (current && current !== document.body) {
+        chain.push(this.getElementSelector(current));
+        current = current.parentElement;
+      }
+      return chain;
+    }
+    async loadComments() {
+      try {
+        const { data, error } = await this.supabase.from("comments").select("*").eq("project_id", this.projectId).order("created_at", { ascending: true });
+        if (error) throw error;
+        const all = data || [];
+        const roots = all.filter((c) => !c.parent_id);
+        roots.forEach((root) => {
+          root.replies = all.filter((c) => c.parent_id === root.id);
+        });
+        this.comments = roots;
+      } catch (error) {
+        console.error("Error loading comments:", error);
+      }
+    }
+    renderCommentPins() {
+      if (!this.overlay) return;
+      this.overlay.innerHTML = "";
+      this.comments.forEach((comment, index) => {
+        if (!comment.element_selector) return;
+        let targetElement = document.querySelector(comment.element_selector);
+        if (!targetElement && comment.element_parent_chain) {
+          for (const parentSelector of comment.element_parent_chain) {
+            targetElement = document.querySelector(parentSelector);
+            if (targetElement) break;
+          }
+        }
+        if (!targetElement) return;
+        const rect = targetElement.getBoundingClientRect();
+        const replyCount = comment.replies?.length || 0;
+        let bgColor = "#3b82f6";
+        if (comment.status === "processing") bgColor = "#f59e0b";
+        else if (comment.status === "review") bgColor = "#8b5cf6";
+        else if (comment.status === "implemented") bgColor = "#10b981";
+        else if (comment.status === "failed") bgColor = "#ef4444";
+        const pin = document.createElement("div");
+        pin.setAttribute("data-vibe", "true");
+        pin.style.cssText = `
+        position: absolute;
+        left: ${rect.left + window.scrollX - 14}px;
+        top: ${rect.top + window.scrollY - 14}px;
+        width: 28px;
+        height: 28px;
+        background: ${bgColor};
+        border-radius: 50% 50% 50% 0;
+        transform: rotate(-45deg);
+        cursor: pointer;
+        pointer-events: all;
+        z-index: 1000001;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        border: 2px solid white;
+        transition: transform 0.15s;
+      `;
+        const num = document.createElement("span");
+        num.style.cssText = "transform: rotate(45deg); color: white; font-size: 11px; font-weight: 700; font-family: -apple-system, sans-serif;";
+        num.textContent = String(index + 1);
+        pin.appendChild(num);
+        if (replyCount > 0) {
+          const badge = document.createElement("div");
+          badge.style.cssText = `
+          position: absolute; top: -6px; right: -6px; transform: rotate(45deg);
+          background: #ef4444; color: white; border-radius: 50%;
+          width: 16px; height: 16px; font-size: 9px; font-weight: 700;
+          display: flex; align-items: center; justify-content: center;
+          border: 1.5px solid white; font-family: -apple-system, sans-serif;
+        `;
+          badge.textContent = String(replyCount);
+          pin.appendChild(badge);
+        }
+        pin.addEventListener("mouseenter", () => {
+          pin.style.transform = "rotate(-45deg) scale(1.15)";
+        });
+        pin.addEventListener("mouseleave", () => {
+          pin.style.transform = "rotate(-45deg) scale(1)";
+        });
+        pin.addEventListener("click", (e2) => {
+          e2.stopPropagation();
+          this.showCommentThread(comment, index + 1);
+        });
+        this.overlay?.appendChild(pin);
+      });
+    }
+    showCommentThread(comment, pinNumber) {
+      const panel = document.createElement("div");
+      panel.setAttribute("data-vibe-modal", "true");
+      panel.style.cssText = `
+      position: fixed;
+      top: 0; right: 0;
+      width: 380px; max-width: 100vw;
+      height: 100vh;
+      background: #fff;
+      z-index: 10000001;
+      box-shadow: -4px 0 24px rgba(0,0,0,0.12);
+      animation: vibe-slide-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    `;
+      if (!document.getElementById("vibe-slide-styles")) {
+        const s = document.createElement("style");
+        s.id = "vibe-slide-styles";
+        s.textContent = "@keyframes vibe-slide-in { from { transform: translateX(100%); } to { transform: translateX(0); } }";
+        document.head.appendChild(s);
+      }
+      const backdrop = document.createElement("div");
+      backdrop.setAttribute("data-vibe-modal", "true");
+      backdrop.style.cssText = "position: fixed; inset: 0; background: rgba(0,0,0,0.15); z-index: 10000000;";
+      const closePanel = () => {
+        document.removeEventListener("keydown", onEsc);
+        if (panel.parentNode) panel.parentNode.removeChild(panel);
+        if (backdrop.parentNode) backdrop.parentNode.removeChild(backdrop);
+      };
+      const onEsc = (e2) => {
+        if (e2.key === "Escape") closePanel();
+      };
+      document.addEventListener("keydown", onEsc);
+      backdrop.addEventListener("click", closePanel);
+      const header = document.createElement("div");
+      header.style.cssText = "padding: 16px 20px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;";
+      const headerLeft = document.createElement("div");
+      headerLeft.style.cssText = "display: flex; align-items: center; gap: 10px;";
+      const pinBadge = document.createElement("div");
+      pinBadge.style.cssText = "width: 28px; height: 28px; background: #3b82f6; border-radius: 50%; color: white; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center;";
+      pinBadge.textContent = String(pinNumber);
+      const headerTitle = document.createElement("span");
+      headerTitle.style.cssText = "font-size: 15px; font-weight: 600; color: #1a1a2e;";
+      headerTitle.textContent = "Comment Thread";
+      headerLeft.appendChild(pinBadge);
+      headerLeft.appendChild(headerTitle);
+      if (comment.status) {
+        const statusBadge = document.createElement("span");
+        const statusColors = {
+          processing: "background: #fef3c7; color: #92400e;",
+          review: "background: #ede9fe; color: #5b21b6;",
+          implemented: "background: #d1fae5; color: #065f46;",
+          failed: "background: #fee2e2; color: #991b1b;"
+        };
+        statusBadge.style.cssText = `font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 99px; margin-left: 8px; ${statusColors[comment.status] || "background: #f1f5f9; color: #475569;"}`;
+        statusBadge.textContent = comment.status.charAt(0).toUpperCase() + comment.status.slice(1);
+        headerLeft.appendChild(statusBadge);
+      }
+      const closeBtn = document.createElement("button");
+      closeBtn.style.cssText = "background: none; border: none; cursor: pointer; font-size: 20px; color: #94a3b8; padding: 4px 8px; border-radius: 6px; line-height: 1;";
+      closeBtn.textContent = "\xD7";
+      closeBtn.addEventListener("click", closePanel);
+      header.appendChild(headerLeft);
+      header.appendChild(closeBtn);
+      panel.appendChild(header);
+      const content2 = document.createElement("div");
+      content2.style.cssText = "flex: 1; overflow-y: auto; padding: 20px;";
+      this.renderCommentBubble(content2, comment, true);
+      if (comment.replies && comment.replies.length > 0) {
+        const repliesSection = document.createElement("div");
+        repliesSection.style.cssText = "margin-top: 4px; padding-left: 20px; border-left: 2px solid #e2e8f0;";
+        comment.replies.forEach((reply) => {
+          this.renderCommentBubble(repliesSection, reply, false);
+        });
+        content2.appendChild(repliesSection);
+      }
+      panel.appendChild(content2);
+      const actions = document.createElement("div");
+      actions.style.cssText = "padding: 12px 20px; border-top: 1px solid #e2e8f0; display: flex; gap: 8px; flex-shrink: 0;";
+      const agreeBtn = document.createElement("button");
+      agreeBtn.style.cssText = `
+      padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s;
+      ${comment.agreed ? "background: #d1fae5; border: 1px solid #6ee7b7; color: #065f46;" : "background: #f1f5f9; border: 1px solid #e2e8f0; color: #475569;"}
+    `;
+      agreeBtn.textContent = comment.agreed ? "Agreed \u2713" : "Agree";
+      agreeBtn.addEventListener("click", async () => {
+        const newAgreed = !comment.agreed;
+        await this.supabase.from("comments").update({ agreed: newAgreed }).eq("id", comment.id);
+        comment.agreed = newAgreed;
+        agreeBtn.textContent = newAgreed ? "Agreed \u2713" : "Agree";
+        agreeBtn.style.cssText = `
+        padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s;
+        ${newAgreed ? "background: #d1fae5; border: 1px solid #6ee7b7; color: #065f46;" : "background: #f1f5f9; border: 1px solid #e2e8f0; color: #475569;"}
+      `;
+      });
+      actions.appendChild(agreeBtn);
+      const resolveBtn = document.createElement("button");
+      resolveBtn.style.cssText = "padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; background: #f1f5f9; border: 1px solid #e2e8f0; color: #475569;";
+      resolveBtn.textContent = "Resolve";
+      resolveBtn.addEventListener("click", async () => {
+        await this.supabase.from("comments").update({ status: "implemented" }).eq("id", comment.id);
+        comment.status = "implemented";
+        closePanel();
+        this.renderCommentPins();
+      });
+      actions.appendChild(resolveBtn);
+      panel.appendChild(actions);
+      const replyBar = document.createElement("div");
+      replyBar.style.cssText = "padding: 12px 20px 16px; border-top: 1px solid #e2e8f0; flex-shrink: 0;";
+      const replyInput = document.createElement("div");
+      replyInput.style.cssText = "display: flex; gap: 8px; align-items: flex-end;";
+      const replyTextarea = document.createElement("textarea");
+      replyTextarea.placeholder = "Reply...";
+      replyTextarea.rows = 1;
+      replyTextarea.style.cssText = `
+      flex: 1; padding: 10px 12px; background: #f8fafc; border: 1px solid #e2e8f0;
+      border-radius: 8px; resize: none; font-family: inherit; font-size: 13px;
+      color: #1a1a2e; outline: none; line-height: 1.4; min-height: 38px; max-height: 120px;
+    `;
+      replyTextarea.addEventListener("focus", () => {
+        replyTextarea.style.borderColor = "#6366f1";
+        replyTextarea.style.boxShadow = "0 0 0 3px rgba(99,102,241,0.12)";
+      });
+      replyTextarea.addEventListener("blur", () => {
+        replyTextarea.style.borderColor = "#e2e8f0";
+        replyTextarea.style.boxShadow = "none";
+      });
+      replyTextarea.addEventListener("input", () => {
+        replyTextarea.style.height = "auto";
+        replyTextarea.style.height = Math.min(replyTextarea.scrollHeight, 120) + "px";
+      });
+      const sendBtn = document.createElement("button");
+      sendBtn.style.cssText = `
+      padding: 9px 14px; background: #3b82f6; color: white; border: none;
+      border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;
+      white-space: nowrap; flex-shrink: 0;
+    `;
+      sendBtn.textContent = "Send";
+      const postReply = async () => {
+        const text = replyTextarea.value.trim();
+        if (!text) return;
+        sendBtn.textContent = "Sending...";
+        sendBtn.style.opacity = "0.6";
+        try {
+          const { data, error } = await this.supabase.from("comments").insert({
+            project_id: this.projectId,
+            page_id: null,
+            body: text,
+            pin_x: comment.pin_x,
+            pin_y: comment.pin_y,
+            parent_id: comment.id,
+            element_selector: comment.element_selector,
+            page_path: window.location.pathname
+          }).select().single();
+          if (error) throw error;
+          if (!comment.replies) comment.replies = [];
+          comment.replies.push(data);
+          const repliesSection = content2.querySelector("[data-replies]");
+          if (repliesSection) {
+            this.renderCommentBubble(repliesSection, data, false);
+          } else {
+            const newSection = document.createElement("div");
+            newSection.setAttribute("data-replies", "true");
+            newSection.style.cssText = "margin-top: 4px; padding-left: 20px; border-left: 2px solid #e2e8f0;";
+            this.renderCommentBubble(newSection, data, false);
+            content2.appendChild(newSection);
+          }
+          replyTextarea.value = "";
+          replyTextarea.style.height = "auto";
+          content2.scrollTop = content2.scrollHeight;
+        } catch (err) {
+          console.error("Reply failed:", err);
+        }
+        sendBtn.textContent = "Send";
+        sendBtn.style.opacity = "1";
+      };
+      sendBtn.addEventListener("click", postReply);
+      replyTextarea.addEventListener("keydown", (e2) => {
+        if (e2.key === "Enter" && !e2.shiftKey) {
+          e2.preventDefault();
+          postReply();
+        }
+      });
+      replyInput.appendChild(replyTextarea);
+      replyInput.appendChild(sendBtn);
+      replyBar.appendChild(replyInput);
+      panel.appendChild(replyBar);
+      const existingReplies = content2.querySelector('div[style*="border-left"]');
+      if (existingReplies) existingReplies.setAttribute("data-replies", "true");
+      document.body.appendChild(backdrop);
+      document.body.appendChild(panel);
+    }
+    renderCommentBubble(container, comment, isRoot) {
+      const bubble = document.createElement("div");
+      bubble.style.cssText = `margin-bottom: 16px;`;
+      const headerRow = document.createElement("div");
+      headerRow.style.cssText = "display: flex; align-items: center; gap: 8px; margin-bottom: 6px;";
+      const avatar = document.createElement("div");
+      const initial = (comment.display_name || comment.user_id || "?")[0].toUpperCase();
+      avatar.style.cssText = `
+      width: ${isRoot ? "32" : "26"}px; height: ${isRoot ? "32" : "26"}px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      border-radius: 50%; color: white; font-size: ${isRoot ? "13" : "11"}px;
+      font-weight: 600; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    `;
+      avatar.textContent = initial;
+      headerRow.appendChild(avatar);
+      const nameTime = document.createElement("div");
+      nameTime.style.cssText = "display: flex; align-items: baseline; gap: 8px; min-width: 0; flex: 1;";
+      const name = document.createElement("span");
+      name.style.cssText = `font-size: ${isRoot ? "13" : "12"}px; font-weight: 600; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
+      name.textContent = comment.display_name || comment.user_id || "User";
+      const time2 = document.createElement("span");
+      time2.style.cssText = "font-size: 11px; color: #94a3b8; white-space: nowrap;";
+      time2.textContent = this.getTimeAgo(new Date(comment.created_at));
+      nameTime.appendChild(name);
+      nameTime.appendChild(time2);
+      headerRow.appendChild(nameTime);
+      bubble.appendChild(headerRow);
+      const body = document.createElement("div");
+      body.style.cssText = `font-size: 13px; color: #334155; line-height: 1.6; ${isRoot ? "margin-left: 40px;" : "margin-left: 34px;"}`;
+      body.textContent = comment.body;
+      bubble.appendChild(body);
+      container.appendChild(bubble);
+    }
+    getTimeAgo(date) {
+      const seconds = Math.floor((Date.now() - date.getTime()) / 1e3);
+      if (seconds < 60) return "just now";
+      const minutes = Math.floor(seconds / 60);
+      if (minutes < 60) return `${minutes}m ago`;
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return `${hours}h ago`;
+      const days = Math.floor(hours / 24);
+      return `${days}d ago`;
+    }
+    injectStyles() {
+      if (document.getElementById("vibe-sdk-styles")) return;
+      const style = document.createElement("style");
+      style.id = "vibe-sdk-styles";
+      style.textContent = `
+      @keyframes vibe-fade-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      @keyframes vibe-scale-in {
+        from { opacity: 0; transform: scale(0.95) translateY(4px); }
+        to { opacity: 1; transform: scale(1) translateY(0); }
+      }
+    `;
+      document.head.appendChild(style);
+    }
+    createPreviewBanner() {
+      if (this.previewBanner || !this.previewCommentId) return;
+      this.previewBanner = document.createElement("div");
+      this.previewBanner.id = "vibe-preview-banner";
+      this.previewBanner.setAttribute("data-vibe", "true");
+      this.previewBanner.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+      color: white;
+      padding: 12px 16px;
+      z-index: 999999;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      animation: slideDown 0.3s ease-out;
+    `;
+      if (!document.getElementById("vibe-banner-styles")) {
+        const styles = document.createElement("style");
+        styles.id = "vibe-banner-styles";
+        styles.textContent = `
+        @keyframes slideDown {
+          from { transform: translateY(-100%); }
+          to { transform: translateY(0); }
+        }
+      `;
+        document.head.appendChild(styles);
+      }
+      const info = document.createElement("div");
+      info.style.cssText = "display: flex; align-items: center; gap: 8px;";
+      info.innerHTML = `<span>Preview for comment #${this.previewCommentId}</span>`;
+      const actions = document.createElement("div");
+      actions.style.cssText = "display: flex; gap: 12px; align-items: center;";
+      const approveBtn = document.createElement("button");
+      approveBtn.textContent = "Approve";
+      approveBtn.style.cssText = `
+      background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3);
+      color: white; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500;
+    `;
+      const requestChangesBtn = document.createElement("button");
+      requestChangesBtn.textContent = "Request Changes";
+      requestChangesBtn.style.cssText = `
+      background: rgba(239,68,68,0.9); border: 1px solid rgba(239,68,68,1);
+      color: white; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500;
+    `;
+      const closeBtn = document.createElement("button");
+      closeBtn.innerHTML = "\xD7";
+      closeBtn.style.cssText = `
+      background: transparent; border: none; color: rgba(255,255,255,0.8);
+      font-size: 20px; cursor: pointer; padding: 4px 8px; line-height: 1;
+    `;
+      approveBtn.addEventListener("click", () => this.handlePreviewApproval(true));
+      requestChangesBtn.addEventListener("click", () => this.handlePreviewApproval(false));
+      closeBtn.addEventListener("click", () => this.hidePreviewBanner());
+      actions.appendChild(requestChangesBtn);
+      actions.appendChild(approveBtn);
+      actions.appendChild(closeBtn);
+      this.previewBanner.appendChild(info);
+      this.previewBanner.appendChild(actions);
+      document.body.appendChild(this.previewBanner);
+      const originalPadding = document.body.style.paddingTop;
+      document.body.style.paddingTop = `calc(${originalPadding || "0px"} + 48px)`;
+      this.previewBanner.setAttribute("data-original-padding", originalPadding);
+    }
+    handlePreviewApproval(approved) {
+      if (!this.previewCommentId) return;
+      window.dispatchEvent(new CustomEvent("vibe:previewAction", {
+        detail: { commentId: this.previewCommentId, action: approved ? "approve" : "request_changes", approved }
+      }));
+      this.showPreviewActionFeedback(approved);
+    }
+    showPreviewActionFeedback(approved) {
+      const feedback = document.createElement("div");
+      feedback.style.cssText = `
+      position: fixed; top: 60px; right: 16px;
+      background: ${approved ? "#10b981" : "#ef4444"}; color: white;
+      padding: 12px 16px; border-radius: 8px; font-family: -apple-system, sans-serif;
+      font-size: 14px; font-weight: 500; z-index: 10000001;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    `;
+      feedback.textContent = approved ? "Preview approved" : "Changes requested";
+      document.body.appendChild(feedback);
+      setTimeout(() => {
+        if (feedback.parentNode) feedback.parentNode.removeChild(feedback);
+      }, 3e3);
+    }
+    hidePreviewBanner() {
+      if (!this.previewBanner) return;
+      const originalPadding = this.previewBanner.getAttribute("data-original-padding") || "0px";
+      document.body.style.paddingTop = originalPadding;
+      document.body.removeChild(this.previewBanner);
+      this.previewBanner = void 0;
+    }
+    isInPreviewMode() {
+      return this.isPreviewMode;
+    }
+    getPreviewCommentId() {
+      return this.previewCommentId;
+    }
+    getPreviews() {
+      return this.previewModule.getPreviews();
+    }
+  };
+
+  // src/toolbar.ts
+  var ToolbarModule = class {
+    constructor(supabase, config) {
+      this.data = {
+        commentCount: 0,
+        activeComments: 0,
+        previewComments: 0,
+        deployedComments: 0
+      };
+      this.isVisible = false;
+      this.isExpanded = false;
+      this.supabase = supabase;
+      this.config = config;
+    }
+    async init() {
+      if (this.toolbar) return;
+      this.createToolbar();
+      await this.loadData();
+      this.attachEventListeners();
+      this.show();
+    }
+    destroy() {
+      if (this.toolbar) {
+        document.body.removeChild(this.toolbar);
+        this.toolbar = void 0;
+      }
+      this.removeEventListeners();
+      this.isVisible = false;
+      this.isExpanded = false;
+    }
+    createToolbar() {
+      this.toolbar = document.createElement("div");
+      this.toolbar.id = "vibe-toolbar";
+      const positionStyles = this.getPositionStyles();
+      this.toolbar.style.cssText = `
+      position: fixed;
+      ${positionStyles}
+      z-index: 999997;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      opacity: 0;
+      transform: scale(0.8) ${this.getTransformDirection()};
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      pointer-events: none;
+    `;
+      if (!document.getElementById("vibe-toolbar-styles")) {
+        this.addToolbarStyles();
+      }
+      this.renderToolbar();
+      document.body.appendChild(this.toolbar);
+    }
+    addToolbarStyles() {
+      const styles = document.createElement("style");
+      styles.id = "vibe-toolbar-styles";
+      styles.textContent = `
+      .vibe-toolbar-visible {
+        opacity: 1 !important;
+        transform: scale(1) translate(0) !important;
+        pointer-events: auto !important;
+      }
+
+      .vibe-toolbar-btn {
+        transition: all 0.2s ease;
+        cursor: pointer;
+        border: none;
+        background: transparent;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+      }
+
+      .vibe-toolbar-btn:hover {
+        transform: scale(1.05);
+      }
+
+      .vibe-toolbar-btn:active {
+        transform: scale(0.95);
+      }
+
+      .vibe-toolbar-badge {
+        position: absolute;
+        top: -4px;
+        right: -4px;
+        background: #ef4444;
+        color: white;
+        border-radius: 50%;
+        width: 16px;
+        height: 16px;
+        font-size: 10px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid white;
+        min-width: 16px;
+        box-sizing: border-box;
+      }
+
+      .vibe-toolbar-expanded {
+        animation: expandToolbar 0.3s ease-out;
+      }
+
+      .vibe-toolbar-collapsed {
+        animation: collapseToolbar 0.3s ease-out;
+      }
+
+      @keyframes expandToolbar {
+        from { max-width: 56px; }
+        to { max-width: 300px; }
+      }
+
+      @keyframes collapseToolbar {
+        from { max-width: 300px; }
+        to { max-width: 56px; }
+      }
+
+      .vibe-fade-in {
+        animation: vibeToolbarFadeIn 0.3s ease-out;
+      }
+
+      @keyframes vibeToolbarFadeIn {
+        from { opacity: 0; transform: translateX(10px); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+    `;
+      document.head.appendChild(styles);
+    }
+    getPositionStyles() {
+      const margin = "20px";
+      switch (this.config.position) {
+        case "top-right":
+          return `top: ${margin}; right: ${margin};`;
+        case "bottom-right":
+          return `bottom: ${margin}; right: ${margin};`;
+        case "top-left":
+          return `top: ${margin}; left: ${margin};`;
+        case "bottom-left":
+          return `bottom: ${margin}; left: ${margin};`;
+        default:
+          return `bottom: ${margin}; right: ${margin};`;
+      }
+    }
+    getTransformDirection() {
+      switch (this.config.position) {
+        case "top-right":
+          return "translate(10px, -10px)";
+        case "bottom-right":
+          return "translate(10px, 10px)";
+        case "top-left":
+          return "translate(-10px, -10px)";
+        case "bottom-left":
+          return "translate(-10px, 10px)";
+        default:
+          return "translate(10px, 10px)";
+      }
+    }
+    renderToolbar() {
+      if (!this.toolbar) return;
+      const isCollapsed = !this.isExpanded;
+      this.toolbar.innerHTML = `
+      <div class="vibe-toolbar-container" style="
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 28px;
+        padding: 8px;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        backdrop-filter: blur(10px);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        max-width: ${isCollapsed ? "56px" : "300px"};
+        overflow: hidden;
+        transition: all 0.3s ease;
+      ">
+        <!-- Main Toggle Button -->
+        <button class="vibe-toolbar-btn vibe-main-btn" style="
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.1);
+          backdrop-filter: blur(8px);
+          color: white;
+          font-size: 16px;
+          position: relative;
+          flex-shrink: 0;
+        ">
+          \u{1F4AC}
+          ${this.data.commentCount > 0 ? `
+            <div class="vibe-toolbar-badge">${this.formatCount(this.data.commentCount)}</div>
+          ` : ""}
+        </button>
+
+        <!-- Expanded Content -->
+        <div class="vibe-toolbar-content" style="
+          display: ${isCollapsed ? "none" : "flex"};
+          align-items: center;
+          gap: 12px;
+          color: white;
+          min-width: 0;
+          flex: 1;
+        ">
+          <!-- Comments Summary -->
+          <div class="vibe-comments-summary" style="
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            min-width: 0;
+            flex: 1;
+          ">
+            <div style="font-size: 12px; font-weight: 600;">
+              ${this.data.commentCount} comment${this.data.commentCount !== 1 ? "s" : ""}
+            </div>
+            <div style="font-size: 10px; opacity: 0.8;">
+              ${this.data.activeComments} active \u2022 ${this.data.previewComments} preview \u2022 ${this.data.deployedComments} deployed
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div style="display: flex; gap: 6px; flex-shrink: 0;">
+            <!-- User Avatar -->
+            ${this.config.user ? `
+              <button class="vibe-toolbar-btn" title="User Settings" style="
+                width: 28px;
+                height: 28px;
+                border-radius: 50%;
+                background: rgba(255, 255, 255, 0.1);
+                overflow: hidden;
+                color: white;
+                font-size: 12px;
+              ">
+                ${this.config.user.avatarUrl ? `
+                  <img src="${this.config.user.avatarUrl}" style="
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                  " />
+                ` : this.getInitials(this.config.user.email)}
+              </button>
+            ` : ""}
+
+            <!-- Settings -->
+            <button class="vibe-toolbar-btn vibe-settings-btn" title="Settings" style="
+              width: 28px;
+              height: 28px;
+              border-radius: 50%;
+              background: rgba(255, 255, 255, 0.1);
+              color: white;
+              font-size: 12px;
+            ">
+              \u2699\uFE0F
+            </button>
+
+            <!-- Close -->
+            <button class="vibe-toolbar-btn vibe-close-btn" title="Close" style="
+              width: 28px;
+              height: 28px;
+              border-radius: 50%;
+              background: rgba(255, 255, 255, 0.1);
+              color: white;
+              font-size: 12px;
+              line-height: 1;
+            ">
+              \xD7
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+      this.attachButtonListeners();
+    }
+    attachButtonListeners() {
+      if (!this.toolbar) return;
+      const mainBtn = this.toolbar.querySelector(".vibe-main-btn");
+      mainBtn?.addEventListener("click", () => {
+        if (!this.isExpanded) {
+          this.expand();
+        } else {
+          this.openCommentsList();
+        }
+      });
+      const settingsBtn = this.toolbar.querySelector(".vibe-settings-btn");
+      settingsBtn?.addEventListener("click", (e2) => {
+        e2.stopPropagation();
+        this.openSettings();
+      });
+      const closeBtn = this.toolbar.querySelector(".vibe-close-btn");
+      closeBtn?.addEventListener("click", (e2) => {
+        e2.stopPropagation();
+        this.hide();
+      });
+      const userBtn = this.toolbar.querySelector('.vibe-toolbar-btn[title="User Settings"]');
+      userBtn?.addEventListener("click", (e2) => {
+        e2.stopPropagation();
+        this.openUserSettings();
+      });
+    }
+    attachEventListeners() {
+      document.addEventListener("click", this.handleOutsideClick.bind(this));
+      window.addEventListener("vibe:commentsUpdated", this.handleCommentsUpdated.bind(this));
+      window.addEventListener("vibe:openCommentsList", this.openCommentsList.bind(this));
+    }
+    removeEventListeners() {
+      document.removeEventListener("click", this.handleOutsideClick.bind(this));
+      window.removeEventListener("vibe:commentsUpdated", this.handleCommentsUpdated.bind(this));
+      window.removeEventListener("vibe:openCommentsList", this.openCommentsList.bind(this));
+    }
+    handleOutsideClick(event) {
+      if (!this.toolbar || !this.isExpanded) return;
+      const target = event.target;
+      if (!this.toolbar.contains(target)) {
+        this.collapse();
+      }
+    }
+    async handleCommentsUpdated() {
+      await this.loadData();
+      this.renderToolbar();
+    }
+    async loadData() {
+      try {
+        const { data: comments, error } = await this.supabase.from("comments").select(`
+          id,
+          status,
+          page_path,
+          created_at
+        `).eq("project_id", this.config.projectId);
+        if (error) throw error;
+        const total = comments?.length || 0;
+        const active = comments?.filter((c) => !c.status || c.status === "active").length || 0;
+        const preview = comments?.filter((c) => c.status === "preview").length || 0;
+        const deployed = comments?.filter((c) => c.status === "deployed").length || 0;
+        this.data = {
+          commentCount: total,
+          activeComments: active,
+          previewComments: preview,
+          deployedComments: deployed
+        };
+      } catch (error) {
+        console.error("Error loading toolbar data:", error);
+      }
+    }
+    expand() {
+      this.isExpanded = true;
+      this.renderToolbar();
+    }
+    collapse() {
+      this.isExpanded = false;
+      this.renderToolbar();
+    }
+    openCommentsList() {
+      const event = new CustomEvent("vibe:openCommentsList", {
+        detail: { projectId: this.config.projectId }
+      });
+      window.dispatchEvent(event);
+    }
+    openSettings() {
+      const event = new CustomEvent("vibe:openSettings", {
+        detail: { projectId: this.config.projectId }
+      });
+      window.dispatchEvent(event);
+    }
+    openUserSettings() {
+      const event = new CustomEvent("vibe:openUserSettings", {
+        detail: { user: this.config.user }
+      });
+      window.dispatchEvent(event);
+    }
+    show() {
+      if (!this.toolbar || this.isVisible) return;
+      this.isVisible = true;
+      this.toolbar.classList.add("vibe-toolbar-visible");
+    }
+    hide() {
+      if (!this.toolbar || !this.isVisible) return;
+      this.isVisible = false;
+      this.toolbar.classList.remove("vibe-toolbar-visible");
+      setTimeout(() => {
+        if (this.toolbar && !this.isVisible) {
+          this.toolbar.style.display = "none";
+        }
+      }, 300);
+    }
+    // Helper methods
+    formatCount(count) {
+      if (count > 99) return "99+";
+      return count.toString();
+    }
+    getInitials(email) {
+      const parts = email.split("@")[0].split(".");
+      if (parts.length >= 2) {
+        return (parts[0][0] + parts[1][0]).toUpperCase();
+      }
+      return email.substring(0, 2).toUpperCase();
+    }
+    // Public methods
+    updateConfig(config) {
+      this.config = { ...this.config, ...config };
+      this.renderToolbar();
+    }
+    async refresh() {
+      await this.loadData();
+      this.renderToolbar();
+    }
+    toggle() {
+      if (this.isVisible) {
+        this.hide();
+      } else {
+        this.show();
+      }
+    }
+    isToolbarVisible() {
+      return this.isVisible;
+    }
+    getData() {
+      return { ...this.data };
+    }
+  };
+
+  // src/commentList.ts
+  var CommentListModule = class {
+    constructor(supabase, config) {
+      this.comments = [];
+      this.filteredComments = [];
+      this.currentFilter = "all";
+      this.isVisible = false;
+      this.supabase = supabase;
+      this.config = config;
+    }
+    async show() {
+      if (this.isVisible) return;
+      await this.loadComments();
+      this.createModal();
+      this.renderComments();
+      this.attachEventListeners();
+      this.isVisible = true;
+    }
+    hide() {
+      if (!this.isVisible) return;
+      if (this.modal) {
+        document.body.removeChild(this.modal);
+        this.modal = void 0;
+      }
+      this.removeEventListeners();
+      this.isVisible = false;
+    }
+    async loadComments() {
+      try {
+        const { data: comments, error } = await this.supabase.from("comments").select(`
+          id,
+          content,
+          status,
+          page_path,
+          element_selector,
+          branch_name,
+          pr_url,
+          preview_url,
+          created_at,
+          created_by,
+          metadata,
+          profiles!created_by (
+            email,
+            full_name
+          )
+        `).eq("project_id", this.config.projectId).order("created_at", { ascending: false });
+        if (error) throw error;
+        this.comments = (comments || []).map((comment) => {
+          const profile = comment.profiles;
+          return {
+            ...comment,
+            status: comment.status || "active",
+            author_name: profile?.full_name,
+            author_email: profile?.email,
+            // TODO: Load approval counts from comment_approvals table
+            approval_count: 0,
+            required_approvals: 1
+          };
+        });
+        this.applyFilter(this.currentFilter);
+      } catch (error) {
+        console.error("Error loading comments:", error);
+        this.comments = [];
+        this.filteredComments = [];
+      }
+    }
+    createModal() {
+      this.modal = document.createElement("div");
+      this.modal.id = "vibe-comment-list-modal";
+      this.modal.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 999999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      box-sizing: border-box;
+      opacity: 0;
+      animation: fadeIn 0.2s ease-out forwards;
+    `;
+      if (!document.getElementById("vibe-comment-list-styles")) {
+        this.addStyles();
+      }
+      const modalContent = document.createElement("div");
+      modalContent.className = "vibe-modal-content";
+      modalContent.style.cssText = `
+      background: white;
+      border-radius: 12px;
+      width: 100%;
+      max-width: 800px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+      transform: scale(0.95) translateY(20px);
+      animation: slideIn 0.3s ease-out forwards;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    `;
+      const header = this.createHeader();
+      modalContent.appendChild(header);
+      const filters = this.createFilters();
+      modalContent.appendChild(filters);
+      const listContainer = document.createElement("div");
+      listContainer.className = "vibe-comment-list-container";
+      listContainer.style.cssText = `
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 24px 24px 24px;
+    `;
+      const commentsList = document.createElement("div");
+      commentsList.className = "vibe-comments-list";
+      commentsList.id = "vibe-comments-list";
+      listContainer.appendChild(commentsList);
+      modalContent.appendChild(listContainer);
+      this.modal.appendChild(modalContent);
+      document.body.appendChild(this.modal);
+      this.modal.addEventListener("click", (e2) => {
+        if (e2.target === this.modal) {
+          this.hide();
+        }
+      });
+    }
+    addStyles() {
+      const styles = document.createElement("style");
+      styles.id = "vibe-comment-list-styles";
+      styles.textContent = `
+      @keyframes fadeIn {
+        to { opacity: 1; }
+      }
+
+      @keyframes slideIn {
+        to {
+          transform: scale(1) translateY(0);
+        }
+      }
+
+      .vibe-comment-item {
+        transition: all 0.2s ease;
+      }
+
+      .vibe-comment-item:hover {
+        background: #f8fafc !important;
+        border-color: #e2e8f0 !important;
+      }
+
+      .vibe-filter-btn {
+        transition: all 0.2s ease;
+      }
+
+      .vibe-filter-btn:hover {
+        background: #f1f5f9;
+      }
+
+      .vibe-filter-btn.active {
+        background: #3b82f6;
+        color: white;
+      }
+
+      .vibe-action-btn {
+        transition: all 0.2s ease;
+      }
+
+      .vibe-action-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      }
+
+      .vibe-status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 11px;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .vibe-status-active {
+        color: #059669;
+        background: #d1fae5;
+      }
+
+      .vibe-status-preview {
+        color: #d97706;
+        background: #fef3c7;
+      }
+
+      .vibe-status-deployed {
+        color: #7c3aed;
+        background: #ede9fe;
+      }
+    `;
+      document.head.appendChild(styles);
+    }
+    createHeader() {
+      const header = document.createElement("div");
+      header.style.cssText = `
+      padding: 24px 24px 16px 24px;
+      border-bottom: 1px solid #e5e7eb;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    `;
+      const title = document.createElement("h2");
+      title.textContent = "Comments";
+      title.style.cssText = `
+      margin: 0;
+      font-size: 20px;
+      font-weight: 600;
+      color: #111827;
+    `;
+      const closeBtn = document.createElement("button");
+      closeBtn.innerHTML = "\xD7";
+      closeBtn.style.cssText = `
+      background: none;
+      border: none;
+      font-size: 24px;
+      color: #6b7280;
+      cursor: pointer;
+      padding: 0;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+    `;
+      closeBtn.addEventListener("click", () => this.hide());
+      header.appendChild(title);
+      header.appendChild(closeBtn);
+      return header;
+    }
+    createFilters() {
+      const filters = document.createElement("div");
+      filters.style.cssText = `
+      padding: 16px 24px;
+      border-bottom: 1px solid #e5e7eb;
+      background: #f9fafb;
+    `;
+      const filterTitle = document.createElement("div");
+      filterTitle.textContent = "Filter by status:";
+      filterTitle.style.cssText = `
+      font-size: 14px;
+      font-weight: 500;
+      color: #374151;
+      margin-bottom: 12px;
+    `;
+      const filterButtons = document.createElement("div");
+      filterButtons.style.cssText = `
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    `;
+      const filterOptions = [
+        { key: "all", label: "All", icon: "\u{1F4CB}" },
+        { key: "active", label: "Active", icon: "\u{1F7E2}" },
+        { key: "preview", label: "Preview", icon: "\u{1F441}" },
+        { key: "deployed", label: "Deployed", icon: "\u2705" }
+      ];
+      filterOptions.forEach((option) => {
+        const btn = document.createElement("button");
+        btn.className = `vibe-filter-btn ${option.key === this.currentFilter ? "active" : ""}`;
+        btn.style.cssText = `
+        padding: 8px 16px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        background: ${option.key === this.currentFilter ? "#3b82f6" : "white"};
+        color: ${option.key === this.currentFilter ? "white" : "#374151"};
+        font-size: 14px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      `;
+        btn.innerHTML = `${option.icon} ${option.label}`;
+        btn.addEventListener("click", () => {
+          this.setFilter(option.key);
+          this.updateFilterButtons();
+          this.renderComments();
+        });
+        filterButtons.appendChild(btn);
+      });
+      filters.appendChild(filterTitle);
+      filters.appendChild(filterButtons);
+      return filters;
+    }
+    updateFilterButtons() {
+      if (!this.modal) return;
+      const buttons = this.modal.querySelectorAll(".vibe-filter-btn");
+      buttons.forEach((btn, index) => {
+        const option = ["all", "active", "preview", "deployed"][index];
+        const isActive = option === this.currentFilter;
+        btn.className = `vibe-filter-btn ${isActive ? "active" : ""}`;
+        btn.style.background = isActive ? "#3b82f6" : "white";
+        btn.style.color = isActive ? "white" : "#374151";
+      });
+    }
+    renderComments() {
+      const listElement = document.getElementById("vibe-comments-list");
+      if (!listElement) return;
+      if (this.filteredComments.length === 0) {
+        listElement.innerHTML = `
+        <div style="
+          text-align: center;
+          padding: 48px 24px;
+          color: #6b7280;
+        ">
+          <div style="font-size: 48px; margin-bottom: 16px;">\u{1F4AC}</div>
+          <div style="font-size: 16px; font-weight: 500; margin-bottom: 8px;">
+            No comments found
+          </div>
+          <div style="font-size: 14px;">
+            ${this.currentFilter === "all" ? "Start by adding a comment to any element on the page." : `No ${this.currentFilter} comments yet.`}
+          </div>
+        </div>
+      `;
+        return;
+      }
+      listElement.innerHTML = this.filteredComments.map((comment) => this.renderComment(comment)).join("");
+    }
+    renderComment(comment) {
+      const relativeTime = this.formatRelativeTime(comment.created_at);
+      const truncatedContent = this.truncateText(comment.content, 120);
+      const statusBadge = this.renderStatusBadge(comment.status);
+      return `
+      <div class="vibe-comment-item" style="
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 12px;
+        background: white;
+        cursor: pointer;
+      " data-comment-id="${comment.id}">
+        <!-- Header -->
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            ${statusBadge}
+            ${comment.page_path ? `
+              <span style="
+                background: #f3f4f6;
+                color: #374151;
+                padding: 2px 6px;
+                border-radius: 4px;
+                font-size: 11px;
+                font-family: monospace;
+              ">${comment.page_path}</span>
+            ` : ""}
+          </div>
+          <div style="font-size: 12px; color: #6b7280;">
+            ${relativeTime}
+          </div>
+        </div>
+
+        <!-- Content -->
+        <div style="margin-bottom: 12px;">
+          <p style="
+            margin: 0;
+            color: #111827;
+            font-size: 14px;
+            line-height: 1.5;
+          ">${truncatedContent}</p>
+        </div>
+
+        <!-- Author -->
+        <div style="
+          font-size: 12px;
+          color: #6b7280;
+          margin-bottom: 12px;
+        ">
+          By ${comment.author_name || comment.author_email || "Unknown"}
+        </div>
+
+        <!-- Actions -->
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div style="display: flex; gap: 8px;">
+            ${this.renderCommentActions(comment)}
+          </div>
+
+          ${comment.approval_count !== void 0 && comment.required_approvals ? `
+            <div style="
+              display: flex;
+              align-items: center;
+              gap: 6px;
+              font-size: 12px;
+              color: #6b7280;
+            ">
+              <span>${comment.approval_count}/${comment.required_approvals} approved</span>
+              ${this.renderApprovalDots(comment.approval_count, comment.required_approvals)}
+            </div>
+          ` : ""}
+        </div>
+      </div>
+    `;
+    }
+    renderStatusBadge(status) {
+      const statusConfig = {
+        active: { icon: "\u{1F7E2}", label: "Active" },
+        preview: { icon: "\u{1F441}", label: "Preview" },
+        deployed: { icon: "\u2705", label: "Deployed" }
+      };
+      const config = statusConfig[status];
+      return `
+      <span class="vibe-status-badge vibe-status-${status}" style="
+        padding: 4px 8px;
+        border-radius: 4px;
+      ">
+        ${config.icon} ${config.label}
+      </span>
+    `;
+    }
+    renderCommentActions(comment) {
+      const actions = [];
+      actions.push(`
+      <button class="vibe-action-btn" data-action="view" data-comment-id="${comment.id}" style="
+        background: #f3f4f6;
+        border: 1px solid #d1d5db;
+        color: #374151;
+        padding: 6px 12px;
+        border-radius: 4px;
+        font-size: 12px;
+        cursor: pointer;
+      ">View</button>
+    `);
+      if (comment.status === "preview") {
+        if (comment.preview_url) {
+          actions.push(`
+          <a href="${comment.preview_url}" target="_blank" class="vibe-action-btn" style="
+            background: #3b82f6;
+            border: 1px solid #3b82f6;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            text-decoration: none;
+            display: inline-block;
+          ">Preview</a>
+        `);
+        }
+        actions.push(`
+        <button class="vibe-action-btn" data-action="approve" data-comment-id="${comment.id}" style="
+          background: #10b981;
+          border: 1px solid #10b981;
+          color: white;
+          padding: 6px 12px;
+          border-radius: 4px;
+          font-size: 12px;
+          cursor: pointer;
+        ">Approve</button>
+      `);
+        actions.push(`
+        <button class="vibe-action-btn" data-action="request-changes" data-comment-id="${comment.id}" style="
+          background: #ef4444;
+          border: 1px solid #ef4444;
+          color: white;
+          padding: 6px 12px;
+          border-radius: 4px;
+          font-size: 12px;
+          cursor: pointer;
+        ">Request Changes</button>
+      `);
+      }
+      if (comment.status === "deployed") {
+        actions.push(`
+        <button class="vibe-action-btn" data-action="rollback" data-comment-id="${comment.id}" style="
+          background: #ef4444;
+          border: 1px solid #ef4444;
+          color: white;
+          padding: 6px 12px;
+          border-radius: 4px;
+          font-size: 12px;
+          cursor: pointer;
+        ">Rollback</button>
+      `);
+      }
+      actions.push(`
+      <button class="vibe-action-btn" data-action="reply" data-comment-id="${comment.id}" style="
+        background: #f59e0b;
+        border: 1px solid #f59e0b;
+        color: white;
+        padding: 6px 12px;
+        border-radius: 4px;
+        font-size: 12px;
+        cursor: pointer;
+      ">Reply</button>
+    `);
+      return actions.join("");
+    }
+    renderApprovalDots(current, required) {
+      const dots = [];
+      for (let i = 0; i < required; i++) {
+        const filled = i < current;
+        dots.push(`
+        <div style="
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: ${filled ? "#10b981" : "#d1d5db"};
+        "></div>
+      `);
+      }
+      return `<div style="display: flex; gap: 2px;">${dots.join("")}</div>`;
+    }
+    attachEventListeners() {
+      if (!this.modal) return;
+      this.modal.addEventListener("click", (e2) => {
+        const target = e2.target;
+        const action = target.getAttribute("data-action");
+        const commentId = target.getAttribute("data-comment-id");
+        if (action && commentId) {
+          e2.preventDefault();
+          e2.stopPropagation();
+          this.handleCommentAction(action, commentId);
+          return;
+        }
+        const commentItem = target.closest(".vibe-comment-item");
+        if (commentItem) {
+          const id = commentItem.getAttribute("data-comment-id");
+          if (id) {
+            this.handleCommentAction("view", id);
+          }
+        }
+      });
+      window.addEventListener("vibe:commentUpdated", this.handleCommentUpdated.bind(this));
+    }
+    removeEventListeners() {
+      window.removeEventListener("vibe:commentUpdated", this.handleCommentUpdated.bind(this));
+    }
+    async handleCommentUpdated() {
+      await this.loadComments();
+      this.renderComments();
+    }
+    handleCommentAction(action, commentId) {
+      const comment = this.comments.find((c) => c.id === commentId);
+      if (!comment) return;
+      switch (action) {
+        case "view":
+          this.viewComment(comment);
+          break;
+        case "approve":
+          this.approveComment(comment);
+          break;
+        case "request-changes":
+          this.requestChanges(comment);
+          break;
+        case "rollback":
+          this.rollbackComment(comment);
+          break;
+        case "reply":
+          this.replyToComment(comment);
+          break;
+      }
+    }
+    viewComment(comment) {
+      this.hide();
+      if (comment.page_path && comment.page_path !== window.location.pathname) {
+        window.location.href = comment.page_path;
+        return;
+      }
+      const event = new CustomEvent("vibe:openComment", {
+        detail: { commentId: comment.id }
+      });
+      window.dispatchEvent(event);
+    }
+    approveComment(comment) {
+      const event = new CustomEvent("vibe:approveComment", {
+        detail: { commentId: comment.id, approved: true }
+      });
+      window.dispatchEvent(event);
+    }
+    requestChanges(comment) {
+      const event = new CustomEvent("vibe:approveComment", {
+        detail: { commentId: comment.id, approved: false }
+      });
+      window.dispatchEvent(event);
+    }
+    rollbackComment(comment) {
+      const event = new CustomEvent("vibe:rollbackComment", {
+        detail: { commentId: comment.id }
+      });
+      window.dispatchEvent(event);
+    }
+    replyToComment(comment) {
+      const event = new CustomEvent("vibe:replyToComment", {
+        detail: { commentId: comment.id }
+      });
+      window.dispatchEvent(event);
+    }
+    applyFilter(filter) {
+      this.currentFilter = filter;
+      if (filter === "all") {
+        this.filteredComments = [...this.comments];
+      } else {
+        this.filteredComments = this.comments.filter((comment) => comment.status === filter);
+      }
+    }
+    setFilter(filter) {
+      this.applyFilter(filter);
+    }
+    // Utility methods
+    formatRelativeTime(dateString) {
+      const date = new Date(dateString);
+      const now = /* @__PURE__ */ new Date();
+      const diffMs = now.getTime() - date.getTime();
+      const seconds = Math.floor(diffMs / 1e3);
+      const minutes = Math.floor(seconds / 60);
+      const hours = Math.floor(minutes / 60);
+      const days = Math.floor(hours / 24);
+      if (seconds < 60) return "just now";
+      if (minutes < 60) return `${minutes}m ago`;
+      if (hours < 24) return `${hours}h ago`;
+      if (days < 7) return `${days}d ago`;
+      return date.toLocaleDateString();
+    }
+    truncateText(text, maxLength) {
+      if (text.length <= maxLength) return text;
+      return text.substring(0, maxLength) + "...";
+    }
+    // Public methods
+    async refresh() {
+      await this.loadComments();
+      this.renderComments();
+    }
+    isModalVisible() {
+      return this.isVisible;
+    }
+    getComments() {
+      return [...this.comments];
+    }
+    getFilteredComments() {
+      return [...this.filteredComments];
+    }
+    getCurrentFilter() {
+      return this.currentFilter;
+    }
+  };
+
   // ../../node_modules/.bun/html2canvas@1.4.1/node_modules/html2canvas/dist/html2canvas.esm.js
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
@@ -19739,2174 +21898,6 @@ ${suffix}`;
       reader.readAsDataURL(blob);
     });
   }
-
-  // src/preview.ts
-  var PreviewModule = class {
-    constructor() {
-      this.previews = /* @__PURE__ */ new Map();
-      this.isActive = false;
-    }
-    init() {
-      if (this.isActive) return;
-      this.detectExistingPreviews();
-      this.setupMutationObserver();
-      this.isActive = true;
-    }
-    destroy() {
-      if (this.observer) {
-        this.observer.disconnect();
-        this.observer = void 0;
-      }
-      this.previews.forEach((preview) => this.cleanupPreview(preview));
-      this.previews.clear();
-      this.isActive = false;
-    }
-    detectExistingPreviews() {
-      const previewElements = document.querySelectorAll("[data-preview-comment], Preview");
-      previewElements.forEach((element) => {
-        this.processPreviewElement(element);
-      });
-    }
-    setupMutationObserver() {
-      this.observer = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-          mutation.addedNodes.forEach((node) => {
-            if (node.nodeType === Node.ELEMENT_NODE) {
-              const element = node;
-              if (this.isPreviewElement(element)) {
-                this.processPreviewElement(element);
-              }
-              const previewsInside = element.querySelectorAll?.("[data-preview-comment], Preview");
-              previewsInside?.forEach((preview) => {
-                this.processPreviewElement(preview);
-              });
-            }
-          });
-          mutation.removedNodes.forEach((node) => {
-            if (node.nodeType === Node.ELEMENT_NODE) {
-              const element = node;
-              if (element.hasAttribute?.("data-preview-comment")) {
-                const commentId = element.getAttribute("data-preview-comment");
-                this.removePreview(commentId);
-              }
-            }
-          });
-        });
-      });
-      this.observer.observe(document.body, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ["data-preview-comment"]
-      });
-    }
-    isPreviewElement(element) {
-      return element.tagName === "PREVIEW" || element.hasAttribute("data-preview-comment");
-    }
-    processPreviewElement(element) {
-      let commentId = null;
-      if (element.tagName === "PREVIEW") {
-        commentId = element.getAttribute("commentId");
-      }
-      if (element.hasAttribute("data-preview-comment")) {
-        commentId = element.getAttribute("data-preview-comment");
-      }
-      if (!commentId) return;
-      if (this.previews.has(commentId)) return;
-      this.addPreviewHighlight(element, commentId);
-    }
-    addPreviewHighlight(element, commentId) {
-      const wrapper = document.createElement("div");
-      wrapper.style.cssText = `
-      position: relative;
-      outline: 2px solid #10b981;
-      outline-offset: 2px;
-      border-radius: 4px;
-      animation: previewPulse 2s infinite;
-    `;
-      if (!document.getElementById("vibe-preview-styles")) {
-        const styles = document.createElement("style");
-        styles.id = "vibe-preview-styles";
-        styles.textContent = `
-        @keyframes previewPulse {
-          0%, 100% { outline-color: #10b981; }
-          50% { outline-color: #6ee7b7; }
-        }
-        .vibe-preview-badge {
-          transition: all 0.2s ease;
-        }
-        .vibe-preview-badge:hover {
-          transform: scale(1.1);
-        }
-        .vibe-preview-tooltip {
-          opacity: 0;
-          pointer-events: none;
-          transition: opacity 0.2s ease;
-        }
-        .vibe-preview-tooltip.show {
-          opacity: 1;
-          pointer-events: auto;
-        }
-      `;
-        document.head.appendChild(styles);
-      }
-      if (element.parentNode) {
-        element.parentNode.insertBefore(wrapper, element);
-        wrapper.appendChild(element);
-      }
-      const badge = this.createCommentBadge(commentId);
-      wrapper.appendChild(badge);
-      const tooltip = this.createHoverTooltip(commentId);
-      wrapper.appendChild(tooltip);
-      const preview = {
-        element,
-        commentId,
-        wrapper,
-        badge,
-        tooltip
-      };
-      this.previews.set(commentId, preview);
-      this.setupHoverEvents(preview);
-    }
-    createCommentBadge(commentId) {
-      const badge = document.createElement("div");
-      badge.className = "vibe-preview-badge";
-      badge.style.cssText = `
-      position: absolute;
-      top: -12px;
-      right: -12px;
-      width: 24px;
-      height: 24px;
-      background: #10b981;
-      color: white;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
-      font-weight: bold;
-      cursor: pointer;
-      z-index: 999998;
-      border: 2px solid white;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    `;
-      badge.textContent = "\u{1F441}";
-      badge.title = `Preview for comment #${commentId}`;
-      badge.addEventListener("click", () => {
-        this.openCommentThread(commentId);
-      });
-      return badge;
-    }
-    createHoverTooltip(commentId) {
-      const tooltip = document.createElement("div");
-      tooltip.className = "vibe-preview-tooltip";
-      tooltip.style.cssText = `
-      position: absolute;
-      bottom: 100%;
-      left: 50%;
-      transform: translateX(-50%);
-      background: #1f2937;
-      color: white;
-      padding: 8px 12px;
-      border-radius: 6px;
-      font-size: 12px;
-      white-space: nowrap;
-      z-index: 999999;
-      margin-bottom: 8px;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    `;
-      const arrow = document.createElement("div");
-      arrow.style.cssText = `
-      position: absolute;
-      top: 100%;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 0;
-      height: 0;
-      border-left: 5px solid transparent;
-      border-right: 5px solid transparent;
-      border-top: 5px solid #1f2937;
-    `;
-      tooltip.appendChild(arrow);
-      tooltip.innerHTML = `
-      <div>Preview: Comment #${commentId}</div>
-      <div style="font-size: 10px; opacity: 0.8; margin-top: 4px;">Click badge to view details</div>
-      ${arrow.outerHTML}
-    `;
-      return tooltip;
-    }
-    setupHoverEvents(preview) {
-      if (!preview.wrapper || !preview.tooltip) return;
-      preview.wrapper.addEventListener("mouseenter", () => {
-        preview.tooltip?.classList.add("show");
-      });
-      preview.wrapper.addEventListener("mouseleave", () => {
-        preview.tooltip?.classList.remove("show");
-      });
-    }
-    openCommentThread(commentId) {
-      const event = new CustomEvent("vibe:openComment", {
-        detail: { commentId }
-      });
-      window.dispatchEvent(event);
-      const commentPin = document.querySelector(`[data-comment-id="${commentId}"]`);
-      if (commentPin) {
-        commentPin.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
-    }
-    removePreview(commentId) {
-      const preview = this.previews.get(commentId);
-      if (!preview) return;
-      this.cleanupPreview(preview);
-      this.previews.delete(commentId);
-    }
-    cleanupPreview(preview) {
-      try {
-        if (preview.wrapper && preview.wrapper.parentNode && preview.element) {
-          preview.wrapper.parentNode.insertBefore(preview.element, preview.wrapper);
-          preview.wrapper.parentNode.removeChild(preview.wrapper);
-        }
-      } catch (error) {
-        console.warn("Error cleaning up preview element:", error);
-      }
-    }
-    // Public method to get all detected previews
-    getPreviews() {
-      return Array.from(this.previews.values());
-    }
-    // Public method to check if preview mode should be active
-    static shouldActivatePreviewMode() {
-      const url = window.location.href;
-      const pathname = window.location.pathname;
-      const previewPatterns = [
-        /\/preview\//,
-        // /preview/comment-123
-        /-preview-/,
-        // branch-preview-abc123
-        /\.preview\./,
-        // subdomain.preview.domain.com
-        /pr-\d+/,
-        // pr-123.vercel.app
-        /comment-\d+/
-        // comment-123.vercel.app
-      ];
-      return previewPatterns.some((pattern) => pattern.test(url) || pattern.test(pathname));
-    }
-    // Public method to extract comment ID from URL
-    static getCommentIdFromUrl() {
-      const url = window.location.href;
-      const pathname = window.location.pathname;
-      const commentMatch = url.match(/comment[/-](\d+)/) || pathname.match(/comment[/-](\d+)/) || url.match(/preview[/-](\d+)/) || pathname.match(/preview[/-](\d+)/);
-      return commentMatch ? commentMatch[1] : null;
-    }
-  };
-
-  // src/overlay.ts
-  var OverlayModule = class {
-    constructor(supabase, projectId) {
-      this.comments = [];
-      this.isActive = false;
-      this.commentMode = false;
-      this.isPreviewMode = false;
-      this.previewCommentId = null;
-      this.supabase = supabase;
-      this.projectId = projectId;
-      this.previewModule = new PreviewModule();
-      this.isPreviewMode = PreviewModule.shouldActivatePreviewMode();
-      this.previewCommentId = PreviewModule.getCommentIdFromUrl();
-      this.boundHandleClick = this.handleElementClick.bind(this);
-      this.boundHandleHover = this.handleElementHover.bind(this);
-      this.boundHandleHoverOut = this.handleElementHoverOut.bind(this);
-    }
-    async init() {
-      if (this.isActive) return;
-      this.injectStyles();
-      this.createOverlay();
-      this.createCommentButton();
-      if (this.isPreviewMode) {
-        this.previewModule.init();
-        this.createPreviewBanner();
-      }
-      this.attachEventListeners();
-      await this.loadComments();
-      this.renderCommentPins();
-      this.isActive = true;
-    }
-    destroy() {
-      if (this.overlay) {
-        document.body.removeChild(this.overlay);
-        this.overlay = void 0;
-      }
-      if (this.highlight) {
-        document.body.removeChild(this.highlight);
-        this.highlight = void 0;
-      }
-      if (this.commentBtn) {
-        document.body.removeChild(this.commentBtn);
-        this.commentBtn = void 0;
-      }
-      if (this.previewBanner) {
-        document.body.removeChild(this.previewBanner);
-        this.previewBanner = void 0;
-      }
-      if (this.previewModule) {
-        this.previewModule.destroy();
-      }
-      this.removeEventListeners();
-      this.isActive = false;
-    }
-    createOverlay() {
-      this.overlay = document.createElement("div");
-      this.overlay.id = "vibe-overlay";
-      this.overlay.setAttribute("data-vibe", "true");
-      this.overlay.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-      z-index: 999999;
-    `;
-      document.body.appendChild(this.overlay);
-      this.highlight = document.createElement("div");
-      this.highlight.id = "vibe-highlight";
-      this.highlight.setAttribute("data-vibe", "true");
-      this.highlight.style.cssText = `
-      position: fixed;
-      pointer-events: none;
-      z-index: 10000000;
-      border: 2px solid #3b82f6;
-      border-radius: 2px;
-      background: rgba(59, 130, 246, 0.08);
-      display: none;
-      transition: top 0.05s, left 0.05s, width 0.05s, height 0.05s;
-    `;
-      document.body.appendChild(this.highlight);
-    }
-    createCommentButton() {
-      this.commentBtn = document.createElement("div");
-      this.commentBtn.id = "vibe-comment-btn";
-      this.commentBtn.setAttribute("data-vibe", "true");
-      this.commentBtn.style.cssText = `
-      position: fixed;
-      bottom: 24px;
-      right: 24px;
-      width: 48px;
-      height: 48px;
-      border-radius: 14px;
-      background: linear-gradient(135deg, #3b82f6, #6366f1);
-      color: white;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      z-index: 999999;
-      box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4), 0 0 0 1px rgba(255,255,255,0.1) inset;
-      transition: transform 0.15s, box-shadow 0.15s;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    `;
-      this.commentBtn.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`;
-      this.commentBtn.addEventListener("mouseenter", () => {
-        this.commentBtn.style.transform = "scale(1.08)";
-        this.commentBtn.style.boxShadow = "0 6px 24px rgba(99, 102, 241, 0.5), 0 0 0 1px rgba(255,255,255,0.15) inset";
-      });
-      this.commentBtn.addEventListener("mouseleave", () => {
-        this.commentBtn.style.transform = "scale(1)";
-        this.commentBtn.style.boxShadow = "0 4px 16px rgba(99, 102, 241, 0.4), 0 0 0 1px rgba(255,255,255,0.1) inset";
-      });
-      this.commentBtn.addEventListener("click", () => {
-        this.toggleCommentMode();
-      });
-      document.body.appendChild(this.commentBtn);
-    }
-    toggleCommentMode() {
-      this.commentMode = !this.commentMode;
-      this.updateCommentButtonState();
-      if (!this.commentMode) {
-        this.hideHighlight();
-      }
-    }
-    setCommentMode(on) {
-      this.commentMode = on;
-      this.updateCommentButtonState();
-      if (!on) {
-        this.hideHighlight();
-      }
-    }
-    updateCommentButtonState() {
-      if (!this.commentBtn) return;
-      if (this.commentMode) {
-        this.commentBtn.style.background = "linear-gradient(135deg, #ef4444, #f97316)";
-        this.commentBtn.style.boxShadow = "0 4px 16px rgba(239, 68, 68, 0.5), 0 0 0 1px rgba(255,255,255,0.1) inset";
-        this.commentBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
-        document.body.style.cursor = "crosshair";
-      } else {
-        this.commentBtn.style.background = "linear-gradient(135deg, #3b82f6, #6366f1)";
-        this.commentBtn.style.boxShadow = "0 4px 16px rgba(99, 102, 241, 0.4), 0 0 0 1px rgba(255,255,255,0.1) inset";
-        this.commentBtn.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`;
-        document.body.style.cursor = "";
-      }
-    }
-    attachEventListeners() {
-      document.addEventListener("click", this.boundHandleClick, true);
-      document.addEventListener("mouseover", this.boundHandleHover);
-      document.addEventListener("mouseout", this.boundHandleHoverOut);
-    }
-    removeEventListeners() {
-      document.removeEventListener("click", this.boundHandleClick, true);
-      document.removeEventListener("mouseover", this.boundHandleHover);
-      document.removeEventListener("mouseout", this.boundHandleHoverOut);
-    }
-    isVibeElement(el) {
-      return !!(el.closest("[data-vibe]") || el.closest("[data-vibe-modal]"));
-    }
-    handleElementClick(event) {
-      if (!this.commentMode) return;
-      const target = event.target;
-      if (this.isVibeElement(target)) return;
-      event.preventDefault();
-      event.stopPropagation();
-      this.setCommentMode(false);
-      this.showCommentModal(target, event.clientX, event.clientY);
-    }
-    handleElementHover(event) {
-      if (!this.commentMode || !this.highlight) return;
-      const target = event.target;
-      if (this.isVibeElement(target)) {
-        this.hideHighlight();
-        return;
-      }
-      const rect = target.getBoundingClientRect();
-      this.highlight.style.display = "block";
-      this.highlight.style.top = `${rect.top}px`;
-      this.highlight.style.left = `${rect.left}px`;
-      this.highlight.style.width = `${rect.width}px`;
-      this.highlight.style.height = `${rect.height}px`;
-    }
-    handleElementHoverOut(event) {
-      if (!this.commentMode) return;
-      const related = event.relatedTarget;
-      if (!related || related === document.documentElement) {
-        this.hideHighlight();
-      }
-    }
-    hideHighlight() {
-      if (this.highlight) {
-        this.highlight.style.display = "none";
-      }
-    }
-    showCommentModal(element, clickX, clickY) {
-      const modalWidth = 380;
-      const modalHeight = 260;
-      const padding = 12;
-      let left = clickX;
-      let top = clickY + padding;
-      if (left + modalWidth > window.innerWidth - padding) {
-        left = window.innerWidth - modalWidth - padding;
-      }
-      if (left < padding) left = padding;
-      if (top + modalHeight > window.innerHeight - padding) {
-        top = clickY - modalHeight - padding;
-      }
-      if (top < padding) top = padding;
-      const modal = document.createElement("div");
-      modal.setAttribute("data-vibe-modal", "true");
-      modal.style.cssText = `
-      position: fixed;
-      left: ${left}px;
-      top: ${top}px;
-      width: ${modalWidth}px;
-      z-index: 10000001;
-      background: #fff;
-      border: 1px solid #e2e8f0;
-      border-radius: 12px;
-      padding: 16px;
-      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15), 0 4px 12px rgba(0, 0, 0, 0.1);
-      animation: vibe-scale-in 0.15s cubic-bezier(0.16, 1, 0.3, 1);
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-    `;
-      const selectorPreview = this.getElementSelector(element);
-      const shortSelector = selectorPreview.length > 40 ? "..." + selectorPreview.slice(-37) : selectorPreview;
-      const form = document.createElement("form");
-      const header = document.createElement("div");
-      header.style.cssText = "display: flex; align-items: center; gap: 8px; margin-bottom: 12px;";
-      const icon = document.createElement("div");
-      icon.style.cssText = "width: 28px; height: 28px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;";
-      icon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
-      const title = document.createElement("span");
-      title.style.cssText = "font-size: 14px; font-weight: 600; color: #1a1a2e;";
-      title.textContent = "Add comment";
-      header.appendChild(icon);
-      header.appendChild(title);
-      form.appendChild(header);
-      const textarea = document.createElement("textarea");
-      textarea.placeholder = "Describe the change you'd like to see...";
-      textarea.required = true;
-      textarea.style.cssText = `
-      width: 100%; height: 80px; padding: 10px 12px;
-      background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
-      resize: none; margin-bottom: 12px; box-sizing: border-box;
-      font-family: inherit; font-size: 13px; color: #1a1a2e;
-      outline: none; line-height: 1.5;
-    `;
-      textarea.addEventListener("focus", () => {
-        textarea.style.borderColor = "#6366f1";
-        textarea.style.boxShadow = "0 0 0 3px rgba(99,102,241,0.15)";
-      });
-      textarea.addEventListener("blur", () => {
-        textarea.style.borderColor = "#e2e8f0";
-        textarea.style.boxShadow = "none";
-      });
-      form.appendChild(textarea);
-      const selectorEl = document.createElement("div");
-      selectorEl.style.cssText = "margin-bottom: 12px; font-size: 10px; color: #94a3b8; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;";
-      selectorEl.textContent = shortSelector;
-      form.appendChild(selectorEl);
-      const btnRow = document.createElement("div");
-      btnRow.style.cssText = "display: flex; gap: 8px;";
-      const submitBtn = document.createElement("button");
-      submitBtn.type = "submit";
-      submitBtn.textContent = "Post";
-      submitBtn.style.cssText = `
-      flex: 1; padding: 9px; background: linear-gradient(135deg, #3b82f6, #6366f1);
-      color: white; border: none; border-radius: 8px; cursor: pointer;
-      font-size: 13px; font-weight: 500;
-    `;
-      const cancelBtn = document.createElement("button");
-      cancelBtn.type = "button";
-      cancelBtn.textContent = "Cancel";
-      cancelBtn.style.cssText = `
-      padding: 9px 16px; background: #f1f5f9; border: 1px solid #e2e8f0;
-      color: #64748b; border-radius: 8px; cursor: pointer; font-size: 13px;
-    `;
-      btnRow.appendChild(submitBtn);
-      btnRow.appendChild(cancelBtn);
-      form.appendChild(btnRow);
-      modal.appendChild(form);
-      const closeModal = () => {
-        document.removeEventListener("keydown", onEsc);
-        document.removeEventListener("mousedown", onClickOutside);
-        if (modal.parentNode) modal.parentNode.removeChild(modal);
-        this.setCommentMode(true);
-      };
-      form.addEventListener("submit", async (e2) => {
-        e2.preventDefault();
-        const content2 = textarea.value;
-        submitBtn.textContent = "Posting...";
-        submitBtn.disabled = true;
-        await this.createComment(element, content2, clickX, clickY);
-        document.removeEventListener("keydown", onEsc);
-        document.removeEventListener("mousedown", onClickOutside);
-        if (modal.parentNode) modal.parentNode.removeChild(modal);
-        this.setCommentMode(true);
-      });
-      cancelBtn.addEventListener("click", closeModal);
-      const onEsc = (e2) => {
-        if (e2.key === "Escape") closeModal();
-      };
-      document.addEventListener("keydown", onEsc);
-      const onClickOutside = (e2) => {
-        if (!modal.contains(e2.target)) closeModal();
-      };
-      setTimeout(() => {
-        document.addEventListener("mousedown", onClickOutside);
-      }, 100);
-      document.body.appendChild(modal);
-      textarea.focus();
-    }
-    async createComment(element, content2, x, y) {
-      try {
-        const selector = this.getElementSelector(element);
-        const xpath = this.getElementXPath(element);
-        const parentChain = this.getElementParentChain(element);
-        const metadata = captureMetadata();
-        let screenshotUrl;
-        try {
-          const blobUrl = await captureElementScreenshot(element);
-          const response = await fetch(blobUrl);
-          const blob = await response.blob();
-          screenshotUrl = await uploadScreenshot(blob, this.supabase);
-          URL.revokeObjectURL(blobUrl);
-        } catch (error2) {
-          console.warn("Failed to capture screenshot:", error2);
-        }
-        const { data, error } = await this.supabase.from("comments").insert({
-          project_id: this.projectId,
-          page_id: null,
-          content: content2,
-          x,
-          y,
-          element_selector: selector,
-          element_xpath: xpath,
-          element_parent_chain: parentChain,
-          element_screenshot_url: screenshotUrl,
-          page_path: window.location.pathname,
-          metadata
-        }).select().single();
-        if (error) throw error;
-        this.comments.push(data);
-        this.renderCommentPins();
-      } catch (error) {
-        console.error("Error creating comment:", error);
-      }
-    }
-    getElementSelector(element) {
-      const path = [];
-      let current = element;
-      while (current && current !== document.body) {
-        let selector = current.tagName.toLowerCase();
-        if (current.id) {
-          selector += `#${current.id}`;
-          path.unshift(selector);
-          break;
-        }
-        if (current.className && typeof current.className === "string") {
-          const classes = current.className.split(" ").filter(Boolean);
-          if (classes.length > 0) {
-            selector += "." + classes.join(".");
-          }
-        }
-        const siblings = Array.from(current.parentElement?.children || []).filter((sibling) => sibling.tagName === current.tagName);
-        if (siblings.length > 1) {
-          const index = siblings.indexOf(current);
-          selector += `:nth-of-type(${index + 1})`;
-        }
-        path.unshift(selector);
-        current = current.parentElement;
-      }
-      return path.join(" > ");
-    }
-    getElementXPath(element) {
-      const path = [];
-      let current = element;
-      while (current && current !== document.body) {
-        let index = 1;
-        let sibling = current.previousElementSibling;
-        while (sibling) {
-          if (sibling.tagName === current.tagName) index++;
-          sibling = sibling.previousElementSibling;
-        }
-        path.unshift(`${current.tagName.toLowerCase()}[${index}]`);
-        current = current.parentElement;
-      }
-      return "/" + path.join("/");
-    }
-    getElementParentChain(element) {
-      const chain = [];
-      let current = element.parentElement;
-      while (current && current !== document.body) {
-        chain.push(this.getElementSelector(current));
-        current = current.parentElement;
-      }
-      return chain;
-    }
-    async loadComments() {
-      try {
-        const { data, error } = await this.supabase.from("comments").select("*").eq("project_id", this.projectId).order("created_at", { ascending: true });
-        if (error) throw error;
-        const all = data || [];
-        const roots = all.filter((c) => !c.parent_id);
-        roots.forEach((root) => {
-          root.replies = all.filter((c) => c.parent_id === root.id);
-        });
-        this.comments = roots;
-      } catch (error) {
-        console.error("Error loading comments:", error);
-      }
-    }
-    renderCommentPins() {
-      if (!this.overlay) return;
-      this.overlay.innerHTML = "";
-      this.comments.forEach((comment, index) => {
-        if (!comment.element_selector) return;
-        let targetElement = document.querySelector(comment.element_selector);
-        if (!targetElement && comment.element_parent_chain) {
-          for (const parentSelector of comment.element_parent_chain) {
-            targetElement = document.querySelector(parentSelector);
-            if (targetElement) break;
-          }
-        }
-        if (!targetElement) return;
-        const rect = targetElement.getBoundingClientRect();
-        const replyCount = comment.replies?.length || 0;
-        let bgColor = "#3b82f6";
-        if (comment.status === "processing") bgColor = "#f59e0b";
-        else if (comment.status === "review") bgColor = "#8b5cf6";
-        else if (comment.status === "implemented") bgColor = "#10b981";
-        else if (comment.status === "failed") bgColor = "#ef4444";
-        const pin = document.createElement("div");
-        pin.setAttribute("data-vibe", "true");
-        pin.style.cssText = `
-        position: absolute;
-        left: ${rect.left + window.scrollX - 14}px;
-        top: ${rect.top + window.scrollY - 14}px;
-        width: 28px;
-        height: 28px;
-        background: ${bgColor};
-        border-radius: 50% 50% 50% 0;
-        transform: rotate(-45deg);
-        cursor: pointer;
-        pointer-events: all;
-        z-index: 1000001;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-        border: 2px solid white;
-        transition: transform 0.15s;
-      `;
-        const num = document.createElement("span");
-        num.style.cssText = "transform: rotate(45deg); color: white; font-size: 11px; font-weight: 700; font-family: -apple-system, sans-serif;";
-        num.textContent = String(index + 1);
-        pin.appendChild(num);
-        if (replyCount > 0) {
-          const badge = document.createElement("div");
-          badge.style.cssText = `
-          position: absolute; top: -6px; right: -6px; transform: rotate(45deg);
-          background: #ef4444; color: white; border-radius: 50%;
-          width: 16px; height: 16px; font-size: 9px; font-weight: 700;
-          display: flex; align-items: center; justify-content: center;
-          border: 1.5px solid white; font-family: -apple-system, sans-serif;
-        `;
-          badge.textContent = String(replyCount);
-          pin.appendChild(badge);
-        }
-        pin.addEventListener("mouseenter", () => {
-          pin.style.transform = "rotate(-45deg) scale(1.15)";
-        });
-        pin.addEventListener("mouseleave", () => {
-          pin.style.transform = "rotate(-45deg) scale(1)";
-        });
-        pin.addEventListener("click", (e2) => {
-          e2.stopPropagation();
-          this.showCommentThread(comment, index + 1);
-        });
-        this.overlay?.appendChild(pin);
-      });
-    }
-    showCommentThread(comment, pinNumber) {
-      const panel = document.createElement("div");
-      panel.setAttribute("data-vibe-modal", "true");
-      panel.style.cssText = `
-      position: fixed;
-      top: 0; right: 0;
-      width: 380px; max-width: 100vw;
-      height: 100vh;
-      background: #fff;
-      z-index: 10000001;
-      box-shadow: -4px 0 24px rgba(0,0,0,0.12);
-      animation: vibe-slide-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-      display: flex; flex-direction: column;
-      overflow: hidden;
-    `;
-      if (!document.getElementById("vibe-slide-styles")) {
-        const s = document.createElement("style");
-        s.id = "vibe-slide-styles";
-        s.textContent = "@keyframes vibe-slide-in { from { transform: translateX(100%); } to { transform: translateX(0); } }";
-        document.head.appendChild(s);
-      }
-      const backdrop = document.createElement("div");
-      backdrop.setAttribute("data-vibe-modal", "true");
-      backdrop.style.cssText = "position: fixed; inset: 0; background: rgba(0,0,0,0.15); z-index: 10000000;";
-      const closePanel = () => {
-        document.removeEventListener("keydown", onEsc);
-        if (panel.parentNode) panel.parentNode.removeChild(panel);
-        if (backdrop.parentNode) backdrop.parentNode.removeChild(backdrop);
-      };
-      const onEsc = (e2) => {
-        if (e2.key === "Escape") closePanel();
-      };
-      document.addEventListener("keydown", onEsc);
-      backdrop.addEventListener("click", closePanel);
-      const header = document.createElement("div");
-      header.style.cssText = "padding: 16px 20px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;";
-      const headerLeft = document.createElement("div");
-      headerLeft.style.cssText = "display: flex; align-items: center; gap: 10px;";
-      const pinBadge = document.createElement("div");
-      pinBadge.style.cssText = "width: 28px; height: 28px; background: #3b82f6; border-radius: 50%; color: white; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center;";
-      pinBadge.textContent = String(pinNumber);
-      const headerTitle = document.createElement("span");
-      headerTitle.style.cssText = "font-size: 15px; font-weight: 600; color: #1a1a2e;";
-      headerTitle.textContent = "Comment Thread";
-      headerLeft.appendChild(pinBadge);
-      headerLeft.appendChild(headerTitle);
-      if (comment.status) {
-        const statusBadge = document.createElement("span");
-        const statusColors = {
-          processing: "background: #fef3c7; color: #92400e;",
-          review: "background: #ede9fe; color: #5b21b6;",
-          implemented: "background: #d1fae5; color: #065f46;",
-          failed: "background: #fee2e2; color: #991b1b;"
-        };
-        statusBadge.style.cssText = `font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 99px; margin-left: 8px; ${statusColors[comment.status] || "background: #f1f5f9; color: #475569;"}`;
-        statusBadge.textContent = comment.status.charAt(0).toUpperCase() + comment.status.slice(1);
-        headerLeft.appendChild(statusBadge);
-      }
-      const closeBtn = document.createElement("button");
-      closeBtn.style.cssText = "background: none; border: none; cursor: pointer; font-size: 20px; color: #94a3b8; padding: 4px 8px; border-radius: 6px; line-height: 1;";
-      closeBtn.textContent = "\xD7";
-      closeBtn.addEventListener("click", closePanel);
-      header.appendChild(headerLeft);
-      header.appendChild(closeBtn);
-      panel.appendChild(header);
-      const content2 = document.createElement("div");
-      content2.style.cssText = "flex: 1; overflow-y: auto; padding: 20px;";
-      this.renderCommentBubble(content2, comment, true);
-      if (comment.replies && comment.replies.length > 0) {
-        const repliesSection = document.createElement("div");
-        repliesSection.style.cssText = "margin-top: 4px; padding-left: 20px; border-left: 2px solid #e2e8f0;";
-        comment.replies.forEach((reply) => {
-          this.renderCommentBubble(repliesSection, reply, false);
-        });
-        content2.appendChild(repliesSection);
-      }
-      panel.appendChild(content2);
-      const actions = document.createElement("div");
-      actions.style.cssText = "padding: 12px 20px; border-top: 1px solid #e2e8f0; display: flex; gap: 8px; flex-shrink: 0;";
-      const agreeBtn = document.createElement("button");
-      agreeBtn.style.cssText = `
-      padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s;
-      ${comment.agreed ? "background: #d1fae5; border: 1px solid #6ee7b7; color: #065f46;" : "background: #f1f5f9; border: 1px solid #e2e8f0; color: #475569;"}
-    `;
-      agreeBtn.textContent = comment.agreed ? "Agreed \u2713" : "Agree";
-      agreeBtn.addEventListener("click", async () => {
-        const newAgreed = !comment.agreed;
-        await this.supabase.from("comments").update({ agreed: newAgreed }).eq("id", comment.id);
-        comment.agreed = newAgreed;
-        agreeBtn.textContent = newAgreed ? "Agreed \u2713" : "Agree";
-        agreeBtn.style.cssText = `
-        padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s;
-        ${newAgreed ? "background: #d1fae5; border: 1px solid #6ee7b7; color: #065f46;" : "background: #f1f5f9; border: 1px solid #e2e8f0; color: #475569;"}
-      `;
-      });
-      actions.appendChild(agreeBtn);
-      const resolveBtn = document.createElement("button");
-      resolveBtn.style.cssText = "padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; background: #f1f5f9; border: 1px solid #e2e8f0; color: #475569;";
-      resolveBtn.textContent = "Resolve";
-      resolveBtn.addEventListener("click", async () => {
-        await this.supabase.from("comments").update({ status: "implemented" }).eq("id", comment.id);
-        comment.status = "implemented";
-        closePanel();
-        this.renderCommentPins();
-      });
-      actions.appendChild(resolveBtn);
-      panel.appendChild(actions);
-      const replyBar = document.createElement("div");
-      replyBar.style.cssText = "padding: 12px 20px 16px; border-top: 1px solid #e2e8f0; flex-shrink: 0;";
-      const replyInput = document.createElement("div");
-      replyInput.style.cssText = "display: flex; gap: 8px; align-items: flex-end;";
-      const replyTextarea = document.createElement("textarea");
-      replyTextarea.placeholder = "Reply...";
-      replyTextarea.rows = 1;
-      replyTextarea.style.cssText = `
-      flex: 1; padding: 10px 12px; background: #f8fafc; border: 1px solid #e2e8f0;
-      border-radius: 8px; resize: none; font-family: inherit; font-size: 13px;
-      color: #1a1a2e; outline: none; line-height: 1.4; min-height: 38px; max-height: 120px;
-    `;
-      replyTextarea.addEventListener("focus", () => {
-        replyTextarea.style.borderColor = "#6366f1";
-        replyTextarea.style.boxShadow = "0 0 0 3px rgba(99,102,241,0.12)";
-      });
-      replyTextarea.addEventListener("blur", () => {
-        replyTextarea.style.borderColor = "#e2e8f0";
-        replyTextarea.style.boxShadow = "none";
-      });
-      replyTextarea.addEventListener("input", () => {
-        replyTextarea.style.height = "auto";
-        replyTextarea.style.height = Math.min(replyTextarea.scrollHeight, 120) + "px";
-      });
-      const sendBtn = document.createElement("button");
-      sendBtn.style.cssText = `
-      padding: 9px 14px; background: #3b82f6; color: white; border: none;
-      border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;
-      white-space: nowrap; flex-shrink: 0;
-    `;
-      sendBtn.textContent = "Send";
-      const postReply = async () => {
-        const text = replyTextarea.value.trim();
-        if (!text) return;
-        sendBtn.textContent = "Sending...";
-        sendBtn.style.opacity = "0.6";
-        try {
-          const { data, error } = await this.supabase.from("comments").insert({
-            project_id: this.projectId,
-            page_id: null,
-            content: text,
-            x: comment.x,
-            y: comment.y,
-            parent_id: comment.id,
-            element_selector: comment.element_selector,
-            page_path: window.location.pathname
-          }).select().single();
-          if (error) throw error;
-          if (!comment.replies) comment.replies = [];
-          comment.replies.push(data);
-          const repliesSection = content2.querySelector("[data-replies]");
-          if (repliesSection) {
-            this.renderCommentBubble(repliesSection, data, false);
-          } else {
-            const newSection = document.createElement("div");
-            newSection.setAttribute("data-replies", "true");
-            newSection.style.cssText = "margin-top: 4px; padding-left: 20px; border-left: 2px solid #e2e8f0;";
-            this.renderCommentBubble(newSection, data, false);
-            content2.appendChild(newSection);
-          }
-          replyTextarea.value = "";
-          replyTextarea.style.height = "auto";
-          content2.scrollTop = content2.scrollHeight;
-        } catch (err) {
-          console.error("Reply failed:", err);
-        }
-        sendBtn.textContent = "Send";
-        sendBtn.style.opacity = "1";
-      };
-      sendBtn.addEventListener("click", postReply);
-      replyTextarea.addEventListener("keydown", (e2) => {
-        if (e2.key === "Enter" && !e2.shiftKey) {
-          e2.preventDefault();
-          postReply();
-        }
-      });
-      replyInput.appendChild(replyTextarea);
-      replyInput.appendChild(sendBtn);
-      replyBar.appendChild(replyInput);
-      panel.appendChild(replyBar);
-      const existingReplies = content2.querySelector('div[style*="border-left"]');
-      if (existingReplies) existingReplies.setAttribute("data-replies", "true");
-      document.body.appendChild(backdrop);
-      document.body.appendChild(panel);
-    }
-    renderCommentBubble(container, comment, isRoot) {
-      const bubble = document.createElement("div");
-      bubble.style.cssText = `margin-bottom: 16px;`;
-      const headerRow = document.createElement("div");
-      headerRow.style.cssText = "display: flex; align-items: center; gap: 8px; margin-bottom: 6px;";
-      const avatar = document.createElement("div");
-      const initial = (comment.user_email || comment.created_by || "?")[0].toUpperCase();
-      avatar.style.cssText = `
-      width: ${isRoot ? "32" : "26"}px; height: ${isRoot ? "32" : "26"}px;
-      background: linear-gradient(135deg, #6366f1, #8b5cf6);
-      border-radius: 50%; color: white; font-size: ${isRoot ? "13" : "11"}px;
-      font-weight: 600; display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
-    `;
-      avatar.textContent = initial;
-      headerRow.appendChild(avatar);
-      const nameTime = document.createElement("div");
-      nameTime.style.cssText = "display: flex; align-items: baseline; gap: 8px; min-width: 0; flex: 1;";
-      const name = document.createElement("span");
-      name.style.cssText = `font-size: ${isRoot ? "13" : "12"}px; font-weight: 600; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
-      name.textContent = comment.user_email || comment.created_by || "User";
-      const time2 = document.createElement("span");
-      time2.style.cssText = "font-size: 11px; color: #94a3b8; white-space: nowrap;";
-      time2.textContent = this.getTimeAgo(new Date(comment.created_at));
-      nameTime.appendChild(name);
-      nameTime.appendChild(time2);
-      headerRow.appendChild(nameTime);
-      bubble.appendChild(headerRow);
-      const body = document.createElement("div");
-      body.style.cssText = `font-size: 13px; color: #334155; line-height: 1.6; ${isRoot ? "margin-left: 40px;" : "margin-left: 34px;"}`;
-      body.textContent = comment.content;
-      bubble.appendChild(body);
-      container.appendChild(bubble);
-    }
-    getTimeAgo(date) {
-      const seconds = Math.floor((Date.now() - date.getTime()) / 1e3);
-      if (seconds < 60) return "just now";
-      const minutes = Math.floor(seconds / 60);
-      if (minutes < 60) return `${minutes}m ago`;
-      const hours = Math.floor(minutes / 60);
-      if (hours < 24) return `${hours}h ago`;
-      const days = Math.floor(hours / 24);
-      return `${days}d ago`;
-    }
-    injectStyles() {
-      if (document.getElementById("vibe-sdk-styles")) return;
-      const style = document.createElement("style");
-      style.id = "vibe-sdk-styles";
-      style.textContent = `
-      @keyframes vibe-fade-in {
-        from { opacity: 0; }
-        to { opacity: 1; }
-      }
-      @keyframes vibe-scale-in {
-        from { opacity: 0; transform: scale(0.95) translateY(4px); }
-        to { opacity: 1; transform: scale(1) translateY(0); }
-      }
-    `;
-      document.head.appendChild(style);
-    }
-    createPreviewBanner() {
-      if (this.previewBanner || !this.previewCommentId) return;
-      this.previewBanner = document.createElement("div");
-      this.previewBanner.id = "vibe-preview-banner";
-      this.previewBanner.setAttribute("data-vibe", "true");
-      this.previewBanner.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      background: linear-gradient(90deg, #10b981 0%, #059669 100%);
-      color: white;
-      padding: 12px 16px;
-      z-index: 999999;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      font-size: 14px;
-      font-weight: 500;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-      animation: slideDown 0.3s ease-out;
-    `;
-      if (!document.getElementById("vibe-banner-styles")) {
-        const styles = document.createElement("style");
-        styles.id = "vibe-banner-styles";
-        styles.textContent = `
-        @keyframes slideDown {
-          from { transform: translateY(-100%); }
-          to { transform: translateY(0); }
-        }
-      `;
-        document.head.appendChild(styles);
-      }
-      const info = document.createElement("div");
-      info.style.cssText = "display: flex; align-items: center; gap: 8px;";
-      info.innerHTML = `<span>Preview for comment #${this.previewCommentId}</span>`;
-      const actions = document.createElement("div");
-      actions.style.cssText = "display: flex; gap: 12px; align-items: center;";
-      const approveBtn = document.createElement("button");
-      approveBtn.textContent = "Approve";
-      approveBtn.style.cssText = `
-      background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3);
-      color: white; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500;
-    `;
-      const requestChangesBtn = document.createElement("button");
-      requestChangesBtn.textContent = "Request Changes";
-      requestChangesBtn.style.cssText = `
-      background: rgba(239,68,68,0.9); border: 1px solid rgba(239,68,68,1);
-      color: white; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500;
-    `;
-      const closeBtn = document.createElement("button");
-      closeBtn.innerHTML = "\xD7";
-      closeBtn.style.cssText = `
-      background: transparent; border: none; color: rgba(255,255,255,0.8);
-      font-size: 20px; cursor: pointer; padding: 4px 8px; line-height: 1;
-    `;
-      approveBtn.addEventListener("click", () => this.handlePreviewApproval(true));
-      requestChangesBtn.addEventListener("click", () => this.handlePreviewApproval(false));
-      closeBtn.addEventListener("click", () => this.hidePreviewBanner());
-      actions.appendChild(requestChangesBtn);
-      actions.appendChild(approveBtn);
-      actions.appendChild(closeBtn);
-      this.previewBanner.appendChild(info);
-      this.previewBanner.appendChild(actions);
-      document.body.appendChild(this.previewBanner);
-      const originalPadding = document.body.style.paddingTop;
-      document.body.style.paddingTop = `calc(${originalPadding || "0px"} + 48px)`;
-      this.previewBanner.setAttribute("data-original-padding", originalPadding);
-    }
-    handlePreviewApproval(approved) {
-      if (!this.previewCommentId) return;
-      window.dispatchEvent(new CustomEvent("vibe:previewAction", {
-        detail: { commentId: this.previewCommentId, action: approved ? "approve" : "request_changes", approved }
-      }));
-      this.showPreviewActionFeedback(approved);
-    }
-    showPreviewActionFeedback(approved) {
-      const feedback = document.createElement("div");
-      feedback.style.cssText = `
-      position: fixed; top: 60px; right: 16px;
-      background: ${approved ? "#10b981" : "#ef4444"}; color: white;
-      padding: 12px 16px; border-radius: 8px; font-family: -apple-system, sans-serif;
-      font-size: 14px; font-weight: 500; z-index: 10000001;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    `;
-      feedback.textContent = approved ? "Preview approved" : "Changes requested";
-      document.body.appendChild(feedback);
-      setTimeout(() => {
-        if (feedback.parentNode) feedback.parentNode.removeChild(feedback);
-      }, 3e3);
-    }
-    hidePreviewBanner() {
-      if (!this.previewBanner) return;
-      const originalPadding = this.previewBanner.getAttribute("data-original-padding") || "0px";
-      document.body.style.paddingTop = originalPadding;
-      document.body.removeChild(this.previewBanner);
-      this.previewBanner = void 0;
-    }
-    isInPreviewMode() {
-      return this.isPreviewMode;
-    }
-    getPreviewCommentId() {
-      return this.previewCommentId;
-    }
-    getPreviews() {
-      return this.previewModule.getPreviews();
-    }
-  };
-
-  // src/toolbar.ts
-  var ToolbarModule = class {
-    constructor(supabase, config) {
-      this.data = {
-        commentCount: 0,
-        activeComments: 0,
-        previewComments: 0,
-        deployedComments: 0
-      };
-      this.isVisible = false;
-      this.isExpanded = false;
-      this.supabase = supabase;
-      this.config = config;
-    }
-    async init() {
-      if (this.toolbar) return;
-      this.createToolbar();
-      await this.loadData();
-      this.attachEventListeners();
-      this.show();
-    }
-    destroy() {
-      if (this.toolbar) {
-        document.body.removeChild(this.toolbar);
-        this.toolbar = void 0;
-      }
-      this.removeEventListeners();
-      this.isVisible = false;
-      this.isExpanded = false;
-    }
-    createToolbar() {
-      this.toolbar = document.createElement("div");
-      this.toolbar.id = "vibe-toolbar";
-      const positionStyles = this.getPositionStyles();
-      this.toolbar.style.cssText = `
-      position: fixed;
-      ${positionStyles}
-      z-index: 999997;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      opacity: 0;
-      transform: scale(0.8) ${this.getTransformDirection()};
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      pointer-events: none;
-    `;
-      if (!document.getElementById("vibe-toolbar-styles")) {
-        this.addToolbarStyles();
-      }
-      this.renderToolbar();
-      document.body.appendChild(this.toolbar);
-    }
-    addToolbarStyles() {
-      const styles = document.createElement("style");
-      styles.id = "vibe-toolbar-styles";
-      styles.textContent = `
-      .vibe-toolbar-visible {
-        opacity: 1 !important;
-        transform: scale(1) translate(0) !important;
-        pointer-events: auto !important;
-      }
-
-      .vibe-toolbar-btn {
-        transition: all 0.2s ease;
-        cursor: pointer;
-        border: none;
-        background: transparent;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        position: relative;
-      }
-
-      .vibe-toolbar-btn:hover {
-        transform: scale(1.05);
-      }
-
-      .vibe-toolbar-btn:active {
-        transform: scale(0.95);
-      }
-
-      .vibe-toolbar-badge {
-        position: absolute;
-        top: -4px;
-        right: -4px;
-        background: #ef4444;
-        color: white;
-        border-radius: 50%;
-        width: 16px;
-        height: 16px;
-        font-size: 10px;
-        font-weight: bold;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border: 2px solid white;
-        min-width: 16px;
-        box-sizing: border-box;
-      }
-
-      .vibe-toolbar-expanded {
-        animation: expandToolbar 0.3s ease-out;
-      }
-
-      .vibe-toolbar-collapsed {
-        animation: collapseToolbar 0.3s ease-out;
-      }
-
-      @keyframes expandToolbar {
-        from { max-width: 56px; }
-        to { max-width: 300px; }
-      }
-
-      @keyframes collapseToolbar {
-        from { max-width: 300px; }
-        to { max-width: 56px; }
-      }
-
-      .vibe-fade-in {
-        animation: vibeToolbarFadeIn 0.3s ease-out;
-      }
-
-      @keyframes vibeToolbarFadeIn {
-        from { opacity: 0; transform: translateX(10px); }
-        to { opacity: 1; transform: translateX(0); }
-      }
-    `;
-      document.head.appendChild(styles);
-    }
-    getPositionStyles() {
-      const margin = "20px";
-      switch (this.config.position) {
-        case "top-right":
-          return `top: ${margin}; right: ${margin};`;
-        case "bottom-right":
-          return `bottom: ${margin}; right: ${margin};`;
-        case "top-left":
-          return `top: ${margin}; left: ${margin};`;
-        case "bottom-left":
-          return `bottom: ${margin}; left: ${margin};`;
-        default:
-          return `bottom: ${margin}; right: ${margin};`;
-      }
-    }
-    getTransformDirection() {
-      switch (this.config.position) {
-        case "top-right":
-          return "translate(10px, -10px)";
-        case "bottom-right":
-          return "translate(10px, 10px)";
-        case "top-left":
-          return "translate(-10px, -10px)";
-        case "bottom-left":
-          return "translate(-10px, 10px)";
-        default:
-          return "translate(10px, 10px)";
-      }
-    }
-    renderToolbar() {
-      if (!this.toolbar) return;
-      const isCollapsed = !this.isExpanded;
-      this.toolbar.innerHTML = `
-      <div class="vibe-toolbar-container" style="
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border-radius: 28px;
-        padding: 8px;
-        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-        backdrop-filter: blur(10px);
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        max-width: ${isCollapsed ? "56px" : "300px"};
-        overflow: hidden;
-        transition: all 0.3s ease;
-      ">
-        <!-- Main Toggle Button -->
-        <button class="vibe-toolbar-btn vibe-main-btn" style="
-          width: 40px;
-          height: 40px;
-          border-radius: 50%;
-          background: rgba(255, 255, 255, 0.1);
-          backdrop-filter: blur(8px);
-          color: white;
-          font-size: 16px;
-          position: relative;
-          flex-shrink: 0;
-        ">
-          \u{1F4AC}
-          ${this.data.commentCount > 0 ? `
-            <div class="vibe-toolbar-badge">${this.formatCount(this.data.commentCount)}</div>
-          ` : ""}
-        </button>
-
-        <!-- Expanded Content -->
-        <div class="vibe-toolbar-content" style="
-          display: ${isCollapsed ? "none" : "flex"};
-          align-items: center;
-          gap: 12px;
-          color: white;
-          min-width: 0;
-          flex: 1;
-        ">
-          <!-- Comments Summary -->
-          <div class="vibe-comments-summary" style="
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-            min-width: 0;
-            flex: 1;
-          ">
-            <div style="font-size: 12px; font-weight: 600;">
-              ${this.data.commentCount} comment${this.data.commentCount !== 1 ? "s" : ""}
-            </div>
-            <div style="font-size: 10px; opacity: 0.8;">
-              ${this.data.activeComments} active \u2022 ${this.data.previewComments} preview \u2022 ${this.data.deployedComments} deployed
-            </div>
-          </div>
-
-          <!-- Action Buttons -->
-          <div style="display: flex; gap: 6px; flex-shrink: 0;">
-            <!-- User Avatar -->
-            ${this.config.user ? `
-              <button class="vibe-toolbar-btn" title="User Settings" style="
-                width: 28px;
-                height: 28px;
-                border-radius: 50%;
-                background: rgba(255, 255, 255, 0.1);
-                overflow: hidden;
-                color: white;
-                font-size: 12px;
-              ">
-                ${this.config.user.avatarUrl ? `
-                  <img src="${this.config.user.avatarUrl}" style="
-                    width: 100%;
-                    height: 100%;
-                    object-fit: cover;
-                  " />
-                ` : this.getInitials(this.config.user.email)}
-              </button>
-            ` : ""}
-
-            <!-- Settings -->
-            <button class="vibe-toolbar-btn vibe-settings-btn" title="Settings" style="
-              width: 28px;
-              height: 28px;
-              border-radius: 50%;
-              background: rgba(255, 255, 255, 0.1);
-              color: white;
-              font-size: 12px;
-            ">
-              \u2699\uFE0F
-            </button>
-
-            <!-- Close -->
-            <button class="vibe-toolbar-btn vibe-close-btn" title="Close" style="
-              width: 28px;
-              height: 28px;
-              border-radius: 50%;
-              background: rgba(255, 255, 255, 0.1);
-              color: white;
-              font-size: 12px;
-              line-height: 1;
-            ">
-              \xD7
-            </button>
-          </div>
-        </div>
-      </div>
-    `;
-      this.attachButtonListeners();
-    }
-    attachButtonListeners() {
-      if (!this.toolbar) return;
-      const mainBtn = this.toolbar.querySelector(".vibe-main-btn");
-      mainBtn?.addEventListener("click", () => {
-        if (!this.isExpanded) {
-          this.expand();
-        } else {
-          this.openCommentsList();
-        }
-      });
-      const settingsBtn = this.toolbar.querySelector(".vibe-settings-btn");
-      settingsBtn?.addEventListener("click", (e2) => {
-        e2.stopPropagation();
-        this.openSettings();
-      });
-      const closeBtn = this.toolbar.querySelector(".vibe-close-btn");
-      closeBtn?.addEventListener("click", (e2) => {
-        e2.stopPropagation();
-        this.hide();
-      });
-      const userBtn = this.toolbar.querySelector('.vibe-toolbar-btn[title="User Settings"]');
-      userBtn?.addEventListener("click", (e2) => {
-        e2.stopPropagation();
-        this.openUserSettings();
-      });
-    }
-    attachEventListeners() {
-      document.addEventListener("click", this.handleOutsideClick.bind(this));
-      window.addEventListener("vibe:commentsUpdated", this.handleCommentsUpdated.bind(this));
-      window.addEventListener("vibe:openCommentsList", this.openCommentsList.bind(this));
-    }
-    removeEventListeners() {
-      document.removeEventListener("click", this.handleOutsideClick.bind(this));
-      window.removeEventListener("vibe:commentsUpdated", this.handleCommentsUpdated.bind(this));
-      window.removeEventListener("vibe:openCommentsList", this.openCommentsList.bind(this));
-    }
-    handleOutsideClick(event) {
-      if (!this.toolbar || !this.isExpanded) return;
-      const target = event.target;
-      if (!this.toolbar.contains(target)) {
-        this.collapse();
-      }
-    }
-    async handleCommentsUpdated() {
-      await this.loadData();
-      this.renderToolbar();
-    }
-    async loadData() {
-      try {
-        const { data: comments, error } = await this.supabase.from("comments").select(`
-          id,
-          status,
-          page_path,
-          created_at
-        `).eq("project_id", this.config.projectId);
-        if (error) throw error;
-        const total = comments?.length || 0;
-        const active = comments?.filter((c) => !c.status || c.status === "active").length || 0;
-        const preview = comments?.filter((c) => c.status === "preview").length || 0;
-        const deployed = comments?.filter((c) => c.status === "deployed").length || 0;
-        this.data = {
-          commentCount: total,
-          activeComments: active,
-          previewComments: preview,
-          deployedComments: deployed
-        };
-      } catch (error) {
-        console.error("Error loading toolbar data:", error);
-      }
-    }
-    expand() {
-      this.isExpanded = true;
-      this.renderToolbar();
-    }
-    collapse() {
-      this.isExpanded = false;
-      this.renderToolbar();
-    }
-    openCommentsList() {
-      const event = new CustomEvent("vibe:openCommentsList", {
-        detail: { projectId: this.config.projectId }
-      });
-      window.dispatchEvent(event);
-    }
-    openSettings() {
-      const event = new CustomEvent("vibe:openSettings", {
-        detail: { projectId: this.config.projectId }
-      });
-      window.dispatchEvent(event);
-    }
-    openUserSettings() {
-      const event = new CustomEvent("vibe:openUserSettings", {
-        detail: { user: this.config.user }
-      });
-      window.dispatchEvent(event);
-    }
-    show() {
-      if (!this.toolbar || this.isVisible) return;
-      this.isVisible = true;
-      this.toolbar.classList.add("vibe-toolbar-visible");
-    }
-    hide() {
-      if (!this.toolbar || !this.isVisible) return;
-      this.isVisible = false;
-      this.toolbar.classList.remove("vibe-toolbar-visible");
-      setTimeout(() => {
-        if (this.toolbar && !this.isVisible) {
-          this.toolbar.style.display = "none";
-        }
-      }, 300);
-    }
-    // Helper methods
-    formatCount(count) {
-      if (count > 99) return "99+";
-      return count.toString();
-    }
-    getInitials(email) {
-      const parts = email.split("@")[0].split(".");
-      if (parts.length >= 2) {
-        return (parts[0][0] + parts[1][0]).toUpperCase();
-      }
-      return email.substring(0, 2).toUpperCase();
-    }
-    // Public methods
-    updateConfig(config) {
-      this.config = { ...this.config, ...config };
-      this.renderToolbar();
-    }
-    async refresh() {
-      await this.loadData();
-      this.renderToolbar();
-    }
-    toggle() {
-      if (this.isVisible) {
-        this.hide();
-      } else {
-        this.show();
-      }
-    }
-    isToolbarVisible() {
-      return this.isVisible;
-    }
-    getData() {
-      return { ...this.data };
-    }
-  };
-
-  // src/commentList.ts
-  var CommentListModule = class {
-    constructor(supabase, config) {
-      this.comments = [];
-      this.filteredComments = [];
-      this.currentFilter = "all";
-      this.isVisible = false;
-      this.supabase = supabase;
-      this.config = config;
-    }
-    async show() {
-      if (this.isVisible) return;
-      await this.loadComments();
-      this.createModal();
-      this.renderComments();
-      this.attachEventListeners();
-      this.isVisible = true;
-    }
-    hide() {
-      if (!this.isVisible) return;
-      if (this.modal) {
-        document.body.removeChild(this.modal);
-        this.modal = void 0;
-      }
-      this.removeEventListeners();
-      this.isVisible = false;
-    }
-    async loadComments() {
-      try {
-        const { data: comments, error } = await this.supabase.from("comments").select(`
-          id,
-          content,
-          status,
-          page_path,
-          element_selector,
-          branch_name,
-          pr_url,
-          preview_url,
-          created_at,
-          created_by,
-          metadata,
-          profiles!created_by (
-            email,
-            full_name
-          )
-        `).eq("project_id", this.config.projectId).order("created_at", { ascending: false });
-        if (error) throw error;
-        this.comments = (comments || []).map((comment) => {
-          const profile = comment.profiles;
-          return {
-            ...comment,
-            status: comment.status || "active",
-            author_name: profile?.full_name,
-            author_email: profile?.email,
-            // TODO: Load approval counts from comment_approvals table
-            approval_count: 0,
-            required_approvals: 1
-          };
-        });
-        this.applyFilter(this.currentFilter);
-      } catch (error) {
-        console.error("Error loading comments:", error);
-        this.comments = [];
-        this.filteredComments = [];
-      }
-    }
-    createModal() {
-      this.modal = document.createElement("div");
-      this.modal.id = "vibe-comment-list-modal";
-      this.modal.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.5);
-      z-index: 999999;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-      box-sizing: border-box;
-      opacity: 0;
-      animation: fadeIn 0.2s ease-out forwards;
-    `;
-      if (!document.getElementById("vibe-comment-list-styles")) {
-        this.addStyles();
-      }
-      const modalContent = document.createElement("div");
-      modalContent.className = "vibe-modal-content";
-      modalContent.style.cssText = `
-      background: white;
-      border-radius: 12px;
-      width: 100%;
-      max-width: 800px;
-      max-height: 90vh;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
-      transform: scale(0.95) translateY(20px);
-      animation: slideIn 0.3s ease-out forwards;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    `;
-      const header = this.createHeader();
-      modalContent.appendChild(header);
-      const filters = this.createFilters();
-      modalContent.appendChild(filters);
-      const listContainer = document.createElement("div");
-      listContainer.className = "vibe-comment-list-container";
-      listContainer.style.cssText = `
-      flex: 1;
-      overflow-y: auto;
-      padding: 0 24px 24px 24px;
-    `;
-      const commentsList = document.createElement("div");
-      commentsList.className = "vibe-comments-list";
-      commentsList.id = "vibe-comments-list";
-      listContainer.appendChild(commentsList);
-      modalContent.appendChild(listContainer);
-      this.modal.appendChild(modalContent);
-      document.body.appendChild(this.modal);
-      this.modal.addEventListener("click", (e2) => {
-        if (e2.target === this.modal) {
-          this.hide();
-        }
-      });
-    }
-    addStyles() {
-      const styles = document.createElement("style");
-      styles.id = "vibe-comment-list-styles";
-      styles.textContent = `
-      @keyframes fadeIn {
-        to { opacity: 1; }
-      }
-
-      @keyframes slideIn {
-        to {
-          transform: scale(1) translateY(0);
-        }
-      }
-
-      .vibe-comment-item {
-        transition: all 0.2s ease;
-      }
-
-      .vibe-comment-item:hover {
-        background: #f8fafc !important;
-        border-color: #e2e8f0 !important;
-      }
-
-      .vibe-filter-btn {
-        transition: all 0.2s ease;
-      }
-
-      .vibe-filter-btn:hover {
-        background: #f1f5f9;
-      }
-
-      .vibe-filter-btn.active {
-        background: #3b82f6;
-        color: white;
-      }
-
-      .vibe-action-btn {
-        transition: all 0.2s ease;
-      }
-
-      .vibe-action-btn:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-      }
-
-      .vibe-status-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        font-size: 11px;
-        font-weight: 500;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-      }
-
-      .vibe-status-active {
-        color: #059669;
-        background: #d1fae5;
-      }
-
-      .vibe-status-preview {
-        color: #d97706;
-        background: #fef3c7;
-      }
-
-      .vibe-status-deployed {
-        color: #7c3aed;
-        background: #ede9fe;
-      }
-    `;
-      document.head.appendChild(styles);
-    }
-    createHeader() {
-      const header = document.createElement("div");
-      header.style.cssText = `
-      padding: 24px 24px 16px 24px;
-      border-bottom: 1px solid #e5e7eb;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    `;
-      const title = document.createElement("h2");
-      title.textContent = "Comments";
-      title.style.cssText = `
-      margin: 0;
-      font-size: 20px;
-      font-weight: 600;
-      color: #111827;
-    `;
-      const closeBtn = document.createElement("button");
-      closeBtn.innerHTML = "\xD7";
-      closeBtn.style.cssText = `
-      background: none;
-      border: none;
-      font-size: 24px;
-      color: #6b7280;
-      cursor: pointer;
-      padding: 0;
-      width: 24px;
-      height: 24px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 4px;
-    `;
-      closeBtn.addEventListener("click", () => this.hide());
-      header.appendChild(title);
-      header.appendChild(closeBtn);
-      return header;
-    }
-    createFilters() {
-      const filters = document.createElement("div");
-      filters.style.cssText = `
-      padding: 16px 24px;
-      border-bottom: 1px solid #e5e7eb;
-      background: #f9fafb;
-    `;
-      const filterTitle = document.createElement("div");
-      filterTitle.textContent = "Filter by status:";
-      filterTitle.style.cssText = `
-      font-size: 14px;
-      font-weight: 500;
-      color: #374151;
-      margin-bottom: 12px;
-    `;
-      const filterButtons = document.createElement("div");
-      filterButtons.style.cssText = `
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    `;
-      const filterOptions = [
-        { key: "all", label: "All", icon: "\u{1F4CB}" },
-        { key: "active", label: "Active", icon: "\u{1F7E2}" },
-        { key: "preview", label: "Preview", icon: "\u{1F441}" },
-        { key: "deployed", label: "Deployed", icon: "\u2705" }
-      ];
-      filterOptions.forEach((option) => {
-        const btn = document.createElement("button");
-        btn.className = `vibe-filter-btn ${option.key === this.currentFilter ? "active" : ""}`;
-        btn.style.cssText = `
-        padding: 8px 16px;
-        border: 1px solid #d1d5db;
-        border-radius: 6px;
-        background: ${option.key === this.currentFilter ? "#3b82f6" : "white"};
-        color: ${option.key === this.currentFilter ? "white" : "#374151"};
-        font-size: 14px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-      `;
-        btn.innerHTML = `${option.icon} ${option.label}`;
-        btn.addEventListener("click", () => {
-          this.setFilter(option.key);
-          this.updateFilterButtons();
-          this.renderComments();
-        });
-        filterButtons.appendChild(btn);
-      });
-      filters.appendChild(filterTitle);
-      filters.appendChild(filterButtons);
-      return filters;
-    }
-    updateFilterButtons() {
-      if (!this.modal) return;
-      const buttons = this.modal.querySelectorAll(".vibe-filter-btn");
-      buttons.forEach((btn, index) => {
-        const option = ["all", "active", "preview", "deployed"][index];
-        const isActive = option === this.currentFilter;
-        btn.className = `vibe-filter-btn ${isActive ? "active" : ""}`;
-        btn.style.background = isActive ? "#3b82f6" : "white";
-        btn.style.color = isActive ? "white" : "#374151";
-      });
-    }
-    renderComments() {
-      const listElement = document.getElementById("vibe-comments-list");
-      if (!listElement) return;
-      if (this.filteredComments.length === 0) {
-        listElement.innerHTML = `
-        <div style="
-          text-align: center;
-          padding: 48px 24px;
-          color: #6b7280;
-        ">
-          <div style="font-size: 48px; margin-bottom: 16px;">\u{1F4AC}</div>
-          <div style="font-size: 16px; font-weight: 500; margin-bottom: 8px;">
-            No comments found
-          </div>
-          <div style="font-size: 14px;">
-            ${this.currentFilter === "all" ? "Start by adding a comment to any element on the page." : `No ${this.currentFilter} comments yet.`}
-          </div>
-        </div>
-      `;
-        return;
-      }
-      listElement.innerHTML = this.filteredComments.map((comment) => this.renderComment(comment)).join("");
-    }
-    renderComment(comment) {
-      const relativeTime = this.formatRelativeTime(comment.created_at);
-      const truncatedContent = this.truncateText(comment.content, 120);
-      const statusBadge = this.renderStatusBadge(comment.status);
-      return `
-      <div class="vibe-comment-item" style="
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        padding: 16px;
-        margin-bottom: 12px;
-        background: white;
-        cursor: pointer;
-      " data-comment-id="${comment.id}">
-        <!-- Header -->
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            ${statusBadge}
-            ${comment.page_path ? `
-              <span style="
-                background: #f3f4f6;
-                color: #374151;
-                padding: 2px 6px;
-                border-radius: 4px;
-                font-size: 11px;
-                font-family: monospace;
-              ">${comment.page_path}</span>
-            ` : ""}
-          </div>
-          <div style="font-size: 12px; color: #6b7280;">
-            ${relativeTime}
-          </div>
-        </div>
-
-        <!-- Content -->
-        <div style="margin-bottom: 12px;">
-          <p style="
-            margin: 0;
-            color: #111827;
-            font-size: 14px;
-            line-height: 1.5;
-          ">${truncatedContent}</p>
-        </div>
-
-        <!-- Author -->
-        <div style="
-          font-size: 12px;
-          color: #6b7280;
-          margin-bottom: 12px;
-        ">
-          By ${comment.author_name || comment.author_email || "Unknown"}
-        </div>
-
-        <!-- Actions -->
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <div style="display: flex; gap: 8px;">
-            ${this.renderCommentActions(comment)}
-          </div>
-
-          ${comment.approval_count !== void 0 && comment.required_approvals ? `
-            <div style="
-              display: flex;
-              align-items: center;
-              gap: 6px;
-              font-size: 12px;
-              color: #6b7280;
-            ">
-              <span>${comment.approval_count}/${comment.required_approvals} approved</span>
-              ${this.renderApprovalDots(comment.approval_count, comment.required_approvals)}
-            </div>
-          ` : ""}
-        </div>
-      </div>
-    `;
-    }
-    renderStatusBadge(status) {
-      const statusConfig = {
-        active: { icon: "\u{1F7E2}", label: "Active" },
-        preview: { icon: "\u{1F441}", label: "Preview" },
-        deployed: { icon: "\u2705", label: "Deployed" }
-      };
-      const config = statusConfig[status];
-      return `
-      <span class="vibe-status-badge vibe-status-${status}" style="
-        padding: 4px 8px;
-        border-radius: 4px;
-      ">
-        ${config.icon} ${config.label}
-      </span>
-    `;
-    }
-    renderCommentActions(comment) {
-      const actions = [];
-      actions.push(`
-      <button class="vibe-action-btn" data-action="view" data-comment-id="${comment.id}" style="
-        background: #f3f4f6;
-        border: 1px solid #d1d5db;
-        color: #374151;
-        padding: 6px 12px;
-        border-radius: 4px;
-        font-size: 12px;
-        cursor: pointer;
-      ">View</button>
-    `);
-      if (comment.status === "preview") {
-        if (comment.preview_url) {
-          actions.push(`
-          <a href="${comment.preview_url}" target="_blank" class="vibe-action-btn" style="
-            background: #3b82f6;
-            border: 1px solid #3b82f6;
-            color: white;
-            padding: 6px 12px;
-            border-radius: 4px;
-            font-size: 12px;
-            text-decoration: none;
-            display: inline-block;
-          ">Preview</a>
-        `);
-        }
-        actions.push(`
-        <button class="vibe-action-btn" data-action="approve" data-comment-id="${comment.id}" style="
-          background: #10b981;
-          border: 1px solid #10b981;
-          color: white;
-          padding: 6px 12px;
-          border-radius: 4px;
-          font-size: 12px;
-          cursor: pointer;
-        ">Approve</button>
-      `);
-        actions.push(`
-        <button class="vibe-action-btn" data-action="request-changes" data-comment-id="${comment.id}" style="
-          background: #ef4444;
-          border: 1px solid #ef4444;
-          color: white;
-          padding: 6px 12px;
-          border-radius: 4px;
-          font-size: 12px;
-          cursor: pointer;
-        ">Request Changes</button>
-      `);
-      }
-      if (comment.status === "deployed") {
-        actions.push(`
-        <button class="vibe-action-btn" data-action="rollback" data-comment-id="${comment.id}" style="
-          background: #ef4444;
-          border: 1px solid #ef4444;
-          color: white;
-          padding: 6px 12px;
-          border-radius: 4px;
-          font-size: 12px;
-          cursor: pointer;
-        ">Rollback</button>
-      `);
-      }
-      actions.push(`
-      <button class="vibe-action-btn" data-action="reply" data-comment-id="${comment.id}" style="
-        background: #f59e0b;
-        border: 1px solid #f59e0b;
-        color: white;
-        padding: 6px 12px;
-        border-radius: 4px;
-        font-size: 12px;
-        cursor: pointer;
-      ">Reply</button>
-    `);
-      return actions.join("");
-    }
-    renderApprovalDots(current, required) {
-      const dots = [];
-      for (let i = 0; i < required; i++) {
-        const filled = i < current;
-        dots.push(`
-        <div style="
-          width: 8px;
-          height: 8px;
-          border-radius: 50%;
-          background: ${filled ? "#10b981" : "#d1d5db"};
-        "></div>
-      `);
-      }
-      return `<div style="display: flex; gap: 2px;">${dots.join("")}</div>`;
-    }
-    attachEventListeners() {
-      if (!this.modal) return;
-      this.modal.addEventListener("click", (e2) => {
-        const target = e2.target;
-        const action = target.getAttribute("data-action");
-        const commentId = target.getAttribute("data-comment-id");
-        if (action && commentId) {
-          e2.preventDefault();
-          e2.stopPropagation();
-          this.handleCommentAction(action, commentId);
-          return;
-        }
-        const commentItem = target.closest(".vibe-comment-item");
-        if (commentItem) {
-          const id = commentItem.getAttribute("data-comment-id");
-          if (id) {
-            this.handleCommentAction("view", id);
-          }
-        }
-      });
-      window.addEventListener("vibe:commentUpdated", this.handleCommentUpdated.bind(this));
-    }
-    removeEventListeners() {
-      window.removeEventListener("vibe:commentUpdated", this.handleCommentUpdated.bind(this));
-    }
-    async handleCommentUpdated() {
-      await this.loadComments();
-      this.renderComments();
-    }
-    handleCommentAction(action, commentId) {
-      const comment = this.comments.find((c) => c.id === commentId);
-      if (!comment) return;
-      switch (action) {
-        case "view":
-          this.viewComment(comment);
-          break;
-        case "approve":
-          this.approveComment(comment);
-          break;
-        case "request-changes":
-          this.requestChanges(comment);
-          break;
-        case "rollback":
-          this.rollbackComment(comment);
-          break;
-        case "reply":
-          this.replyToComment(comment);
-          break;
-      }
-    }
-    viewComment(comment) {
-      this.hide();
-      if (comment.page_path && comment.page_path !== window.location.pathname) {
-        window.location.href = comment.page_path;
-        return;
-      }
-      const event = new CustomEvent("vibe:openComment", {
-        detail: { commentId: comment.id }
-      });
-      window.dispatchEvent(event);
-    }
-    approveComment(comment) {
-      const event = new CustomEvent("vibe:approveComment", {
-        detail: { commentId: comment.id, approved: true }
-      });
-      window.dispatchEvent(event);
-    }
-    requestChanges(comment) {
-      const event = new CustomEvent("vibe:approveComment", {
-        detail: { commentId: comment.id, approved: false }
-      });
-      window.dispatchEvent(event);
-    }
-    rollbackComment(comment) {
-      const event = new CustomEvent("vibe:rollbackComment", {
-        detail: { commentId: comment.id }
-      });
-      window.dispatchEvent(event);
-    }
-    replyToComment(comment) {
-      const event = new CustomEvent("vibe:replyToComment", {
-        detail: { commentId: comment.id }
-      });
-      window.dispatchEvent(event);
-    }
-    applyFilter(filter) {
-      this.currentFilter = filter;
-      if (filter === "all") {
-        this.filteredComments = [...this.comments];
-      } else {
-        this.filteredComments = this.comments.filter((comment) => comment.status === filter);
-      }
-    }
-    setFilter(filter) {
-      this.applyFilter(filter);
-    }
-    // Utility methods
-    formatRelativeTime(dateString) {
-      const date = new Date(dateString);
-      const now = /* @__PURE__ */ new Date();
-      const diffMs = now.getTime() - date.getTime();
-      const seconds = Math.floor(diffMs / 1e3);
-      const minutes = Math.floor(seconds / 60);
-      const hours = Math.floor(minutes / 60);
-      const days = Math.floor(hours / 24);
-      if (seconds < 60) return "just now";
-      if (minutes < 60) return `${minutes}m ago`;
-      if (hours < 24) return `${hours}h ago`;
-      if (days < 7) return `${days}d ago`;
-      return date.toLocaleDateString();
-    }
-    truncateText(text, maxLength) {
-      if (text.length <= maxLength) return text;
-      return text.substring(0, maxLength) + "...";
-    }
-    // Public methods
-    async refresh() {
-      await this.loadComments();
-      this.renderComments();
-    }
-    isModalVisible() {
-      return this.isVisible;
-    }
-    getComments() {
-      return [...this.comments];
-    }
-    getFilteredComments() {
-      return [...this.filteredComments];
-    }
-    getCurrentFilter() {
-      return this.currentFilter;
-    }
-  };
 
   // src/index.ts
   var VibeInstance = class {
