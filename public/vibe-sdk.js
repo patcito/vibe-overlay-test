@@ -12173,6 +12173,7 @@ ${suffix}`;
   // src/overlay.ts
   var OverlayModule = class {
     constructor(supabase, projectId) {
+      this.pageId = null;
       this.comments = [];
       this.isActive = false;
       this.commentMode = false;
@@ -12196,6 +12197,7 @@ ${suffix}`;
         this.previewModule.init();
         this.createPreviewBanner();
       }
+      await this.ensurePage();
       this.attachEventListeners();
       await this.loadComments();
       this.renderCommentPins();
@@ -12484,6 +12486,24 @@ ${suffix}`;
       document.body.appendChild(modal);
       textarea.focus();
     }
+    async ensurePage() {
+      const pagePath = window.location.pathname;
+      const { data: existing } = await this.supabase.from("pages").select("id").eq("project_id", this.projectId).eq("title", pagePath).limit(1).single();
+      if (existing) {
+        this.pageId = existing.id;
+        return;
+      }
+      const { data: created, error } = await this.supabase.from("pages").insert({
+        project_id: this.projectId,
+        title: pagePath,
+        sort_order: 0
+      }).select("id").single();
+      if (error) {
+        console.error("Error creating page:", error);
+        return;
+      }
+      this.pageId = created.id;
+    }
     async createComment(element, body, clickX, clickY) {
       try {
         const selector = this.getElementSelector(element);
@@ -12492,7 +12512,7 @@ ${suffix}`;
         const metadata = captureMetadata();
         const { data, error } = await this.supabase.from("comments").insert({
           project_id: this.projectId,
-          page_id: null,
+          page_id: this.pageId,
           body,
           pin_x: clickX,
           pin_y: clickY,
@@ -12792,7 +12812,7 @@ ${suffix}`;
         try {
           const { data, error } = await this.supabase.from("comments").insert({
             project_id: this.projectId,
-            page_id: null,
+            page_id: this.pageId,
             body: text,
             pin_x: comment.pin_x,
             pin_y: comment.pin_y,
