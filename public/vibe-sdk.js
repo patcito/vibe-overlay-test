@@ -20405,9 +20405,14 @@ ${suffix}`;
     }
     async loadComments() {
       try {
-        const { data, error } = await this.supabase.from("comments").select("*").eq("project_id", this.projectId).eq("page_path", window.location.pathname);
+        const { data, error } = await this.supabase.from("comments").select("*").eq("project_id", this.projectId).order("created_at", { ascending: true });
         if (error) throw error;
-        this.comments = data || [];
+        const all = data || [];
+        const roots = all.filter((c) => !c.parent_id);
+        roots.forEach((root) => {
+          root.replies = all.filter((c) => c.parent_id === root.id);
+        });
+        this.comments = roots;
       } catch (error) {
         console.error("Error loading comments:", error);
       }
@@ -20415,7 +20420,7 @@ ${suffix}`;
     renderCommentPins() {
       if (!this.overlay) return;
       this.overlay.innerHTML = "";
-      this.comments.forEach((comment) => {
+      this.comments.forEach((comment, index) => {
         if (!comment.element_selector) return;
         let targetElement = document.querySelector(comment.element_selector);
         if (!targetElement && comment.element_parent_chain) {
@@ -20426,103 +20431,288 @@ ${suffix}`;
         }
         if (!targetElement) return;
         const rect = targetElement.getBoundingClientRect();
+        const replyCount = comment.replies?.length || 0;
+        let bgColor = "#3b82f6";
+        if (comment.status === "processing") bgColor = "#f59e0b";
+        else if (comment.status === "review") bgColor = "#8b5cf6";
+        else if (comment.status === "implemented") bgColor = "#10b981";
+        else if (comment.status === "failed") bgColor = "#ef4444";
         const pin = document.createElement("div");
         pin.setAttribute("data-vibe", "true");
         pin.style.cssText = `
         position: absolute;
-        left: ${rect.left + window.scrollX}px;
-        top: ${rect.top + window.scrollY}px;
-        width: 24px;
-        height: 24px;
-        background: #3b82f6;
-        border-radius: 50%;
-        border: 2px solid white;
+        left: ${rect.left + window.scrollX - 14}px;
+        top: ${rect.top + window.scrollY - 14}px;
+        width: 28px;
+        height: 28px;
+        background: ${bgColor};
+        border-radius: 50% 50% 50% 0;
+        transform: rotate(-45deg);
         cursor: pointer;
         pointer-events: all;
         z-index: 1000001;
         display: flex;
         align-items: center;
         justify-content: center;
-        color: white;
-        font-size: 12px;
-        font-weight: bold;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        border: 2px solid white;
+        transition: transform 0.15s;
       `;
-        pin.textContent = "\u{1F4AC}";
-        pin.addEventListener("click", () => {
-          this.showCommentDetails(comment);
+        const num = document.createElement("span");
+        num.style.cssText = "transform: rotate(45deg); color: white; font-size: 11px; font-weight: 700; font-family: -apple-system, sans-serif;";
+        num.textContent = String(index + 1);
+        pin.appendChild(num);
+        if (replyCount > 0) {
+          const badge = document.createElement("div");
+          badge.style.cssText = `
+          position: absolute; top: -6px; right: -6px; transform: rotate(45deg);
+          background: #ef4444; color: white; border-radius: 50%;
+          width: 16px; height: 16px; font-size: 9px; font-weight: 700;
+          display: flex; align-items: center; justify-content: center;
+          border: 1.5px solid white; font-family: -apple-system, sans-serif;
+        `;
+          badge.textContent = String(replyCount);
+          pin.appendChild(badge);
+        }
+        pin.addEventListener("mouseenter", () => {
+          pin.style.transform = "rotate(-45deg) scale(1.15)";
+        });
+        pin.addEventListener("mouseleave", () => {
+          pin.style.transform = "rotate(-45deg) scale(1)";
+        });
+        pin.addEventListener("click", (e2) => {
+          e2.stopPropagation();
+          this.showCommentThread(comment, index + 1);
         });
         this.overlay?.appendChild(pin);
       });
     }
-    showCommentDetails(comment) {
+    showCommentThread(comment, pinNumber) {
+      const panel = document.createElement("div");
+      panel.setAttribute("data-vibe-modal", "true");
+      panel.style.cssText = `
+      position: fixed;
+      top: 0; right: 0;
+      width: 380px; max-width: 100vw;
+      height: 100vh;
+      background: #fff;
+      z-index: 10000001;
+      box-shadow: -4px 0 24px rgba(0,0,0,0.12);
+      animation: vibe-slide-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    `;
+      if (!document.getElementById("vibe-slide-styles")) {
+        const s = document.createElement("style");
+        s.id = "vibe-slide-styles";
+        s.textContent = "@keyframes vibe-slide-in { from { transform: translateX(100%); } to { transform: translateX(0); } }";
+        document.head.appendChild(s);
+      }
       const backdrop = document.createElement("div");
       backdrop.setAttribute("data-vibe-modal", "true");
-      backdrop.style.cssText = `
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.4);
-      backdrop-filter: blur(4px);
-      -webkit-backdrop-filter: blur(4px);
-      z-index: 10000001;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      animation: vibe-fade-in 0.15s ease-out;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-    `;
-      const modal = document.createElement("div");
-      modal.style.cssText = `
-      background: rgba(24, 24, 27, 0.95);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 16px;
-      padding: 28px;
-      max-width: 420px;
-      width: 90%;
-      box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255,255,255,0.05) inset;
-      animation: vibe-scale-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-    `;
-      const timeAgo = this.getTimeAgo(new Date(comment.created_at));
-      modal.innerHTML = `
-      <div style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 20px;">
-        <div style="width: 36px; height: 36px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        </div>
-        <div style="flex: 1; min-width: 0;">
-          <div style="display: flex; align-items: center; justify-content: space-between;">
-            <h3 style="margin: 0; font-size: 15px; font-weight: 600; color: #fafafa;">Comment</h3>
-            <span style="font-size: 11px; color: rgba(255,255,255,0.3);">${timeAgo}</span>
-          </div>
-        </div>
-      </div>
-      <p style="margin: 0 0 20px; color: rgba(255,255,255,0.75); font-size: 14px; line-height: 1.6;">${comment.content}</p>
-      ${comment.element_selector ? `<div style="margin-bottom: 20px; padding: 10px 12px; background: rgba(255,255,255,0.04); border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);"><code style="font-size: 11px; color: rgba(255,255,255,0.3); word-break: break-all;">${comment.element_selector}</code></div>` : ""}
-      <button
-        class="close"
-        style="
-          width: 100%;
-          padding: 11px;
-          background: rgba(255, 255, 255, 0.06);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          color: rgba(255,255,255,0.6);
-          border-radius: 10px;
-          cursor: pointer;
-          font-size: 13px;
-          transition: background 0.15s, color 0.15s;
-        "
-        onmouseover="this.style.background='rgba(255,255,255,0.1)';this.style.color='rgba(255,255,255,0.8)'"
-        onmouseout="this.style.background='rgba(255,255,255,0.06)';this.style.color='rgba(255,255,255,0.6)'"
-      >Close</button>
-    `;
-      const closeDetails = () => {
+      backdrop.style.cssText = "position: fixed; inset: 0; background: rgba(0,0,0,0.15); z-index: 10000000;";
+      const closePanel = () => {
+        document.removeEventListener("keydown", onEsc);
+        if (panel.parentNode) panel.parentNode.removeChild(panel);
         if (backdrop.parentNode) backdrop.parentNode.removeChild(backdrop);
       };
-      modal.querySelector(".close")?.addEventListener("click", closeDetails);
-      backdrop.addEventListener("click", (e2) => {
-        if (e2.target === backdrop) closeDetails();
+      const onEsc = (e2) => {
+        if (e2.key === "Escape") closePanel();
+      };
+      document.addEventListener("keydown", onEsc);
+      backdrop.addEventListener("click", closePanel);
+      const header = document.createElement("div");
+      header.style.cssText = "padding: 16px 20px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;";
+      const headerLeft = document.createElement("div");
+      headerLeft.style.cssText = "display: flex; align-items: center; gap: 10px;";
+      const pinBadge = document.createElement("div");
+      pinBadge.style.cssText = "width: 28px; height: 28px; background: #3b82f6; border-radius: 50%; color: white; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center;";
+      pinBadge.textContent = String(pinNumber);
+      const headerTitle = document.createElement("span");
+      headerTitle.style.cssText = "font-size: 15px; font-weight: 600; color: #1a1a2e;";
+      headerTitle.textContent = "Comment Thread";
+      headerLeft.appendChild(pinBadge);
+      headerLeft.appendChild(headerTitle);
+      if (comment.status) {
+        const statusBadge = document.createElement("span");
+        const statusColors = {
+          processing: "background: #fef3c7; color: #92400e;",
+          review: "background: #ede9fe; color: #5b21b6;",
+          implemented: "background: #d1fae5; color: #065f46;",
+          failed: "background: #fee2e2; color: #991b1b;"
+        };
+        statusBadge.style.cssText = `font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 99px; margin-left: 8px; ${statusColors[comment.status] || "background: #f1f5f9; color: #475569;"}`;
+        statusBadge.textContent = comment.status.charAt(0).toUpperCase() + comment.status.slice(1);
+        headerLeft.appendChild(statusBadge);
+      }
+      const closeBtn = document.createElement("button");
+      closeBtn.style.cssText = "background: none; border: none; cursor: pointer; font-size: 20px; color: #94a3b8; padding: 4px 8px; border-radius: 6px; line-height: 1;";
+      closeBtn.textContent = "\xD7";
+      closeBtn.addEventListener("click", closePanel);
+      header.appendChild(headerLeft);
+      header.appendChild(closeBtn);
+      panel.appendChild(header);
+      const content2 = document.createElement("div");
+      content2.style.cssText = "flex: 1; overflow-y: auto; padding: 20px;";
+      this.renderCommentBubble(content2, comment, true);
+      if (comment.replies && comment.replies.length > 0) {
+        const repliesSection = document.createElement("div");
+        repliesSection.style.cssText = "margin-top: 4px; padding-left: 20px; border-left: 2px solid #e2e8f0;";
+        comment.replies.forEach((reply) => {
+          this.renderCommentBubble(repliesSection, reply, false);
+        });
+        content2.appendChild(repliesSection);
+      }
+      panel.appendChild(content2);
+      const actions = document.createElement("div");
+      actions.style.cssText = "padding: 12px 20px; border-top: 1px solid #e2e8f0; display: flex; gap: 8px; flex-shrink: 0;";
+      const agreeBtn = document.createElement("button");
+      agreeBtn.style.cssText = `
+      padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s;
+      ${comment.agreed ? "background: #d1fae5; border: 1px solid #6ee7b7; color: #065f46;" : "background: #f1f5f9; border: 1px solid #e2e8f0; color: #475569;"}
+    `;
+      agreeBtn.textContent = comment.agreed ? "Agreed \u2713" : "Agree";
+      agreeBtn.addEventListener("click", async () => {
+        const newAgreed = !comment.agreed;
+        await this.supabase.from("comments").update({ agreed: newAgreed }).eq("id", comment.id);
+        comment.agreed = newAgreed;
+        agreeBtn.textContent = newAgreed ? "Agreed \u2713" : "Agree";
+        agreeBtn.style.cssText = `
+        padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s;
+        ${newAgreed ? "background: #d1fae5; border: 1px solid #6ee7b7; color: #065f46;" : "background: #f1f5f9; border: 1px solid #e2e8f0; color: #475569;"}
+      `;
       });
-      backdrop.appendChild(modal);
+      actions.appendChild(agreeBtn);
+      const resolveBtn = document.createElement("button");
+      resolveBtn.style.cssText = "padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; background: #f1f5f9; border: 1px solid #e2e8f0; color: #475569;";
+      resolveBtn.textContent = "Resolve";
+      resolveBtn.addEventListener("click", async () => {
+        await this.supabase.from("comments").update({ status: "implemented" }).eq("id", comment.id);
+        comment.status = "implemented";
+        closePanel();
+        this.renderCommentPins();
+      });
+      actions.appendChild(resolveBtn);
+      panel.appendChild(actions);
+      const replyBar = document.createElement("div");
+      replyBar.style.cssText = "padding: 12px 20px 16px; border-top: 1px solid #e2e8f0; flex-shrink: 0;";
+      const replyInput = document.createElement("div");
+      replyInput.style.cssText = "display: flex; gap: 8px; align-items: flex-end;";
+      const replyTextarea = document.createElement("textarea");
+      replyTextarea.placeholder = "Reply...";
+      replyTextarea.rows = 1;
+      replyTextarea.style.cssText = `
+      flex: 1; padding: 10px 12px; background: #f8fafc; border: 1px solid #e2e8f0;
+      border-radius: 8px; resize: none; font-family: inherit; font-size: 13px;
+      color: #1a1a2e; outline: none; line-height: 1.4; min-height: 38px; max-height: 120px;
+    `;
+      replyTextarea.addEventListener("focus", () => {
+        replyTextarea.style.borderColor = "#6366f1";
+        replyTextarea.style.boxShadow = "0 0 0 3px rgba(99,102,241,0.12)";
+      });
+      replyTextarea.addEventListener("blur", () => {
+        replyTextarea.style.borderColor = "#e2e8f0";
+        replyTextarea.style.boxShadow = "none";
+      });
+      replyTextarea.addEventListener("input", () => {
+        replyTextarea.style.height = "auto";
+        replyTextarea.style.height = Math.min(replyTextarea.scrollHeight, 120) + "px";
+      });
+      const sendBtn = document.createElement("button");
+      sendBtn.style.cssText = `
+      padding: 9px 14px; background: #3b82f6; color: white; border: none;
+      border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;
+      white-space: nowrap; flex-shrink: 0;
+    `;
+      sendBtn.textContent = "Send";
+      const postReply = async () => {
+        const text = replyTextarea.value.trim();
+        if (!text) return;
+        sendBtn.textContent = "Sending...";
+        sendBtn.style.opacity = "0.6";
+        try {
+          const { data, error } = await this.supabase.from("comments").insert({
+            project_id: this.projectId,
+            page_id: null,
+            content: text,
+            x: comment.x,
+            y: comment.y,
+            parent_id: comment.id,
+            element_selector: comment.element_selector,
+            page_path: window.location.pathname
+          }).select().single();
+          if (error) throw error;
+          if (!comment.replies) comment.replies = [];
+          comment.replies.push(data);
+          const repliesSection = content2.querySelector("[data-replies]");
+          if (repliesSection) {
+            this.renderCommentBubble(repliesSection, data, false);
+          } else {
+            const newSection = document.createElement("div");
+            newSection.setAttribute("data-replies", "true");
+            newSection.style.cssText = "margin-top: 4px; padding-left: 20px; border-left: 2px solid #e2e8f0;";
+            this.renderCommentBubble(newSection, data, false);
+            content2.appendChild(newSection);
+          }
+          replyTextarea.value = "";
+          replyTextarea.style.height = "auto";
+          content2.scrollTop = content2.scrollHeight;
+        } catch (err) {
+          console.error("Reply failed:", err);
+        }
+        sendBtn.textContent = "Send";
+        sendBtn.style.opacity = "1";
+      };
+      sendBtn.addEventListener("click", postReply);
+      replyTextarea.addEventListener("keydown", (e2) => {
+        if (e2.key === "Enter" && !e2.shiftKey) {
+          e2.preventDefault();
+          postReply();
+        }
+      });
+      replyInput.appendChild(replyTextarea);
+      replyInput.appendChild(sendBtn);
+      replyBar.appendChild(replyInput);
+      panel.appendChild(replyBar);
+      const existingReplies = content2.querySelector('div[style*="border-left"]');
+      if (existingReplies) existingReplies.setAttribute("data-replies", "true");
       document.body.appendChild(backdrop);
+      document.body.appendChild(panel);
+    }
+    renderCommentBubble(container, comment, isRoot) {
+      const bubble = document.createElement("div");
+      bubble.style.cssText = `margin-bottom: 16px;`;
+      const headerRow = document.createElement("div");
+      headerRow.style.cssText = "display: flex; align-items: center; gap: 8px; margin-bottom: 6px;";
+      const avatar = document.createElement("div");
+      const initial = (comment.user_email || comment.created_by || "?")[0].toUpperCase();
+      avatar.style.cssText = `
+      width: ${isRoot ? "32" : "26"}px; height: ${isRoot ? "32" : "26"}px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      border-radius: 50%; color: white; font-size: ${isRoot ? "13" : "11"}px;
+      font-weight: 600; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    `;
+      avatar.textContent = initial;
+      headerRow.appendChild(avatar);
+      const nameTime = document.createElement("div");
+      nameTime.style.cssText = "display: flex; align-items: baseline; gap: 8px; min-width: 0; flex: 1;";
+      const name = document.createElement("span");
+      name.style.cssText = `font-size: ${isRoot ? "13" : "12"}px; font-weight: 600; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
+      name.textContent = comment.user_email || comment.created_by || "User";
+      const time2 = document.createElement("span");
+      time2.style.cssText = "font-size: 11px; color: #94a3b8; white-space: nowrap;";
+      time2.textContent = this.getTimeAgo(new Date(comment.created_at));
+      nameTime.appendChild(name);
+      nameTime.appendChild(time2);
+      headerRow.appendChild(nameTime);
+      bubble.appendChild(headerRow);
+      const body = document.createElement("div");
+      body.style.cssText = `font-size: 13px; color: #334155; line-height: 1.6; ${isRoot ? "margin-left: 40px;" : "margin-left: 34px;"}`;
+      body.textContent = comment.content;
+      bubble.appendChild(body);
+      container.appendChild(bubble);
     }
     getTimeAgo(date) {
       const seconds = Math.floor((Date.now() - date.getTime()) / 1e3);
