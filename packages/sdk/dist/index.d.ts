@@ -133,6 +133,7 @@ declare class AuthModule {
     checkAuth(): Promise<boolean>;
     showLoginModal(): Promise<void>;
     private createLoginModal;
+    private injectStyles;
     getCurrentUser(): Promise<UserIdentity | null>;
 }
 
@@ -207,6 +208,8 @@ declare class OverlayModule {
     private loadComments;
     private renderCommentPins;
     private showCommentDetails;
+    private getTimeAgo;
+    private injectStyles;
     private createPreviewBanner;
     private handlePreviewApproval;
     private showPreviewActionFeedback;

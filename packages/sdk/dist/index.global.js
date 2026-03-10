@@ -11621,112 +11621,153 @@ ${suffix}`;
     }
     createLoginModal(resolve, reject) {
       const backdrop = document.createElement("div");
+      backdrop.setAttribute("data-vibe-modal", "true");
       backdrop.style.cssText = `
       position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.5);
-      z-index: 999999;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      z-index: 1000000;
       display: flex;
       align-items: center;
       justify-content: center;
+      animation: vibe-fade-in 0.2s ease-out;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
     `;
       const modal = document.createElement("div");
       modal.style.cssText = `
-      background: white;
-      border-radius: 8px;
-      padding: 24px;
-      max-width: 400px;
+      background: rgba(24, 24, 27, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 32px;
+      max-width: 380px;
       width: 90%;
-      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+      box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255,255,255,0.05) inset;
+      animation: vibe-scale-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     `;
+      this.injectStyles();
       const form = document.createElement("form");
       form.innerHTML = `
-      <h2 style="margin: 0 0 16px 0; font-size: 20px; font-weight: 600;">Sign in to Vibe Viewer</h2>
-      <p style="margin: 0 0 20px 0; color: #666; font-size: 14px;">Enter your email to receive a magic link</p>
-      <input
-        type="email"
-        placeholder="Enter your email"
-        required
+      <div style="text-align: center; margin-bottom: 24px;">
+        <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); border-radius: 12px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <h2 style="margin: 0 0 4px; font-size: 20px; font-weight: 600; color: #fafafa; letter-spacing: -0.02em;">Sign in to Vibe</h2>
+        <p style="margin: 0; color: rgba(255,255,255,0.45); font-size: 13px;">Enter your email to get a magic link</p>
+      </div>
+      <div style="position: relative; margin-bottom: 16px;">
+        <input
+          type="email"
+          placeholder="you@company.com"
+          required
+          style="
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            color: #fafafa;
+            font-size: 14px;
+            box-sizing: border-box;
+            outline: none;
+            transition: border-color 0.15s, box-shadow 0.15s;
+          "
+          onfocus="this.style.borderColor='rgba(99,102,241,0.6)';this.style.boxShadow='0 0 0 3px rgba(99,102,241,0.15)'"
+          onblur="this.style.borderColor='rgba(255,255,255,0.1)';this.style.boxShadow='none'"
+        />
+      </div>
+      <button
+        type="submit"
         style="
           width: 100%;
           padding: 12px;
-          border: 1px solid #ddd;
-          border-radius: 4px;
-          margin-bottom: 16px;
-          box-sizing: border-box;
+          background: linear-gradient(135deg, #3b82f6, #6366f1);
+          color: white;
+          border: none;
+          border-radius: 10px;
+          cursor: pointer;
           font-size: 14px;
+          font-weight: 500;
+          letter-spacing: -0.01em;
+          transition: opacity 0.15s, transform 0.1s;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,255,255,0.1) inset;
         "
-      />
-      <div style="display: flex; gap: 12px;">
-        <button
-          type="submit"
-          style="
-            flex: 1;
-            background: #000;
-            color: white;
-            border: none;
-            padding: 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-          "
-        >Send Magic Link</button>
-        <button
-          type="button"
-          class="cancel"
-          style="
-            background: #f5f5f5;
-            color: #666;
-            border: none;
-            padding: 12px 20px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-          "
-        >Cancel</button>
-      </div>
+        onmouseover="this.style.opacity='0.9'"
+        onmouseout="this.style.opacity='1'"
+        onmousedown="this.style.transform='scale(0.98)'"
+        onmouseup="this.style.transform='scale(1)'"
+      >Send Magic Link</button>
+      <button
+        type="button"
+        class="cancel"
+        style="
+          width: 100%;
+          margin-top: 8px;
+          padding: 10px;
+          background: transparent;
+          color: rgba(255,255,255,0.4);
+          border: none;
+          border-radius: 10px;
+          cursor: pointer;
+          font-size: 13px;
+          transition: color 0.15s;
+        "
+        onmouseover="this.style.color='rgba(255,255,255,0.7)'"
+        onmouseout="this.style.color='rgba(255,255,255,0.4)'"
+      >Cancel</button>
     `;
       form.addEventListener("submit", async (e2) => {
         e2.preventDefault();
         const email = form.querySelector('input[type="email"]').value;
+        const submitBtn = form.querySelector('button[type="submit"]');
+        submitBtn.textContent = "Sending...";
+        submitBtn.disabled = true;
         try {
           const { error } = await this.supabase.auth.signInWithOtp({
             email,
-            options: {
-              emailRedirectTo: window.location.href
-            }
+            options: { emailRedirectTo: window.location.href }
           });
           if (error) throw error;
           modal.innerHTML = `
-          <h2 style="margin: 0 0 16px 0; font-size: 20px; font-weight: 600;">Check your email</h2>
-          <p style="margin: 0 0 20px 0; color: #666; font-size: 14px;">
-            We've sent a magic link to <strong>${email}</strong>.
-            Click the link in the email to sign in.
-          </p>
-          <button
-            class="close"
-            style="
-              width: 100%;
-              background: #000;
-              color: white;
-              border: none;
-              padding: 12px;
-              border-radius: 4px;
-              cursor: pointer;
-              font-size: 14px;
-            "
-          >Close</button>
+          <div style="text-align: center;">
+            <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #10b981, #059669); border-radius: 12px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center;">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <h2 style="margin: 0 0 8px; font-size: 20px; font-weight: 600; color: #fafafa; letter-spacing: -0.02em;">Check your email</h2>
+            <p style="margin: 0 0 24px; color: rgba(255,255,255,0.45); font-size: 13px; line-height: 1.5;">
+              Magic link sent to <span style="color: rgba(255,255,255,0.8);">${email}</span>
+            </p>
+            <button
+              class="close"
+              style="
+                width: 100%;
+                padding: 12px;
+                background: rgba(255, 255, 255, 0.06);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                color: rgba(255,255,255,0.7);
+                border-radius: 10px;
+                cursor: pointer;
+                font-size: 14px;
+                transition: background 0.15s;
+              "
+              onmouseover="this.style.background='rgba(255,255,255,0.1)'"
+              onmouseout="this.style.background='rgba(255,255,255,0.06)'"
+            >Done</button>
+          </div>
         `;
           modal.querySelector(".close")?.addEventListener("click", () => {
             document.body.removeChild(backdrop);
             resolve();
           });
         } catch (error) {
-          alert("Error sending magic link: " + error.message);
-          reject(error);
+          submitBtn.textContent = "Send Magic Link";
+          submitBtn.disabled = false;
+          const errMsg = document.createElement("p");
+          errMsg.style.cssText = "color: #f87171; font-size: 13px; margin: 8px 0 0; text-align: center;";
+          errMsg.textContent = error.message;
+          form.appendChild(errMsg);
+          setTimeout(() => errMsg.remove(), 4e3);
         }
       });
       form.querySelector(".cancel")?.addEventListener("click", () => {
@@ -11743,6 +11784,25 @@ ${suffix}`;
       backdrop.appendChild(modal);
       document.body.appendChild(backdrop);
       this.modal = backdrop;
+      setTimeout(() => {
+        form.querySelector('input[type="email"]')?.focus();
+      }, 100);
+    }
+    injectStyles() {
+      if (document.getElementById("vibe-sdk-styles")) return;
+      const style = document.createElement("style");
+      style.id = "vibe-sdk-styles";
+      style.textContent = `
+      @keyframes vibe-fade-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      @keyframes vibe-scale-in {
+        from { opacity: 0; transform: scale(0.95) translateY(8px); }
+        to { opacity: 1; transform: scale(1) translateY(0); }
+      }
+    `;
+      document.head.appendChild(style);
     }
     async getCurrentUser() {
       if (this.providedUser) {
@@ -20062,86 +20122,136 @@ ${suffix}`;
       }
     }
     showCommentModal(element, x, y) {
-      const modal = document.createElement("div");
-      modal.setAttribute("data-vibe-modal", "true");
-      modal.style.cssText = `
+      this.injectStyles();
+      const backdrop = document.createElement("div");
+      backdrop.setAttribute("data-vibe-modal", "true");
+      backdrop.style.cssText = `
       position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: white;
-      border-radius: 8px;
-      padding: 24px;
-      max-width: 400px;
-      width: 90%;
-      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
       z-index: 1000000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: vibe-fade-in 0.15s ease-out;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+    `;
+      const modal = document.createElement("div");
+      modal.style.cssText = `
+      background: rgba(24, 24, 27, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 28px;
+      max-width: 420px;
+      width: 90%;
+      box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255,255,255,0.05) inset;
+      animation: vibe-scale-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
       pointer-events: all;
     `;
+      const selectorPreview = this.getElementSelector(element);
+      const shortSelector = selectorPreview.length > 50 ? "..." + selectorPreview.slice(-47) : selectorPreview;
       const form = document.createElement("form");
       form.innerHTML = `
-      <h3 style="margin: 0 0 16px 0; font-size: 18px; font-weight: 600;">Add Comment</h3>
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
+        <div style="width: 36px; height: 36px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <div>
+          <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: #fafafa; letter-spacing: -0.02em;">Add Comment</h3>
+          <p style="margin: 2px 0 0; font-size: 11px; color: rgba(255,255,255,0.3); font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 300px;">${shortSelector}</p>
+        </div>
+      </div>
       <textarea
-        placeholder="Describe the issue or change you'd like to see..."
+        placeholder="Describe the change you'd like to see..."
         required
         style="
           width: 100%;
-          height: 80px;
-          padding: 12px;
-          border: 1px solid #ddd;
-          border-radius: 4px;
+          height: 100px;
+          padding: 12px 14px;
+          background: rgba(255, 255, 255, 0.06);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 10px;
           resize: vertical;
           margin-bottom: 16px;
           box-sizing: border-box;
           font-family: inherit;
           font-size: 14px;
+          color: #fafafa;
+          outline: none;
+          transition: border-color 0.15s, box-shadow 0.15s;
+          line-height: 1.5;
         "
+        onfocus="this.style.borderColor='rgba(99,102,241,0.6)';this.style.boxShadow='0 0 0 3px rgba(99,102,241,0.15)'"
+        onblur="this.style.borderColor='rgba(255,255,255,0.1)';this.style.boxShadow='none'"
       ></textarea>
-      <div style="display: flex; gap: 12px;">
+      <div style="display: flex; gap: 8px;">
         <button
           type="submit"
           style="
             flex: 1;
-            background: #000;
+            padding: 11px;
+            background: linear-gradient(135deg, #3b82f6, #6366f1);
             color: white;
             border: none;
-            padding: 12px;
-            border-radius: 4px;
+            border-radius: 10px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 13px;
+            font-weight: 500;
+            transition: opacity 0.15s, transform 0.1s;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,255,255,0.1) inset;
           "
-        >Add Comment</button>
+          onmouseover="this.style.opacity='0.9'"
+          onmouseout="this.style.opacity='1'"
+          onmousedown="this.style.transform='scale(0.98)'"
+          onmouseup="this.style.transform='scale(1)'"
+        >Comment</button>
         <button
           type="button"
           class="cancel"
           style="
-            background: #f5f5f5;
-            color: #666;
-            border: none;
-            padding: 12px 20px;
-            border-radius: 4px;
+            padding: 11px 20px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: rgba(255,255,255,0.5);
+            border-radius: 10px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 13px;
+            transition: background 0.15s, color 0.15s;
           "
+          onmouseover="this.style.background='rgba(255,255,255,0.1)';this.style.color='rgba(255,255,255,0.8)'"
+          onmouseout="this.style.background='rgba(255,255,255,0.06)';this.style.color='rgba(255,255,255,0.5)'"
         >Cancel</button>
       </div>
     `;
       form.addEventListener("submit", async (e2) => {
         e2.preventDefault();
         const content2 = form.querySelector("textarea").value;
+        const submitBtn = form.querySelector('button[type="submit"]');
+        submitBtn.textContent = "Posting...";
+        submitBtn.disabled = true;
         await this.createComment(element, content2, x, y);
-        document.body.removeChild(modal);
+        document.body.removeChild(backdrop);
         this.modalOpen = false;
       });
       form.querySelector(".cancel")?.addEventListener("click", () => {
-        document.body.removeChild(modal);
+        document.body.removeChild(backdrop);
         this.modalOpen = false;
+      });
+      backdrop.addEventListener("click", (e2) => {
+        if (e2.target === backdrop) {
+          document.body.removeChild(backdrop);
+          this.modalOpen = false;
+        }
       });
       this.modalOpen = true;
       modal.appendChild(form);
-      document.body.appendChild(modal);
-      const textarea = form.querySelector("textarea");
-      textarea.focus();
+      backdrop.appendChild(modal);
+      document.body.appendChild(backdrop);
+      setTimeout(() => {
+        form.querySelector("textarea")?.focus();
+      }, 100);
     }
     async createComment(element, content2, x, y) {
       try {
@@ -20286,48 +20396,105 @@ ${suffix}`;
       });
     }
     showCommentDetails(comment) {
-      const modal = document.createElement("div");
-      modal.setAttribute("data-vibe-modal", "true");
-      modal.style.cssText = `
+      this.injectStyles();
+      const backdrop = document.createElement("div");
+      backdrop.setAttribute("data-vibe-modal", "true");
+      backdrop.style.cssText = `
       position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: white;
-      border-radius: 8px;
-      padding: 24px;
-      max-width: 400px;
-      width: 90%;
-      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
       z-index: 1000000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: vibe-fade-in 0.15s ease-out;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+    `;
+      const modal = document.createElement("div");
+      modal.style.cssText = `
+      background: rgba(24, 24, 27, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 28px;
+      max-width: 420px;
+      width: 90%;
+      box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255,255,255,0.05) inset;
+      animation: vibe-scale-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
       pointer-events: all;
     `;
+      const timeAgo = this.getTimeAgo(new Date(comment.created_at));
       modal.innerHTML = `
-      <h3 style="margin: 0 0 16px 0; font-size: 18px; font-weight: 600;">Comment</h3>
-      <p style="margin: 0 0 16px 0; color: #333; line-height: 1.5;">${comment.content}</p>
-      <div style="display: flex; justify-content: space-between; align-items: center; color: #666; font-size: 12px; margin-bottom: 16px;">
-        <span>Created ${new Date(comment.created_at).toLocaleString()}</span>
+      <div style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 20px;">
+        <div style="width: 36px; height: 36px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <div style="flex: 1; min-width: 0;">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <h3 style="margin: 0; font-size: 15px; font-weight: 600; color: #fafafa;">Comment</h3>
+            <span style="font-size: 11px; color: rgba(255,255,255,0.3);">${timeAgo}</span>
+          </div>
+        </div>
       </div>
+      <p style="margin: 0 0 20px; color: rgba(255,255,255,0.75); font-size: 14px; line-height: 1.6;">${comment.content}</p>
+      ${comment.element_selector ? `<div style="margin-bottom: 20px; padding: 10px 12px; background: rgba(255,255,255,0.04); border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);"><code style="font-size: 11px; color: rgba(255,255,255,0.3); word-break: break-all;">${comment.element_selector}</code></div>` : ""}
       <button
         class="close"
         style="
           width: 100%;
-          background: #f5f5f5;
-          color: #666;
-          border: none;
-          padding: 12px;
-          border-radius: 4px;
+          padding: 11px;
+          background: rgba(255, 255, 255, 0.06);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          color: rgba(255,255,255,0.6);
+          border-radius: 10px;
           cursor: pointer;
-          font-size: 14px;
+          font-size: 13px;
+          transition: background 0.15s, color 0.15s;
         "
+        onmouseover="this.style.background='rgba(255,255,255,0.1)';this.style.color='rgba(255,255,255,0.8)'"
+        onmouseout="this.style.background='rgba(255,255,255,0.06)';this.style.color='rgba(255,255,255,0.6)'"
       >Close</button>
     `;
       modal.querySelector(".close")?.addEventListener("click", () => {
-        document.body.removeChild(modal);
+        document.body.removeChild(backdrop);
         this.modalOpen = false;
       });
+      backdrop.addEventListener("click", (e2) => {
+        if (e2.target === backdrop) {
+          document.body.removeChild(backdrop);
+          this.modalOpen = false;
+        }
+      });
       this.modalOpen = true;
-      document.body.appendChild(modal);
+      backdrop.appendChild(modal);
+      document.body.appendChild(backdrop);
+    }
+    getTimeAgo(date) {
+      const seconds = Math.floor((Date.now() - date.getTime()) / 1e3);
+      if (seconds < 60) return "just now";
+      const minutes = Math.floor(seconds / 60);
+      if (minutes < 60) return `${minutes}m ago`;
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return `${hours}h ago`;
+      const days = Math.floor(hours / 24);
+      return `${days}d ago`;
+    }
+    injectStyles() {
+      if (document.getElementById("vibe-sdk-styles")) return;
+      const style = document.createElement("style");
+      style.id = "vibe-sdk-styles";
+      style.textContent = `
+      @keyframes vibe-fade-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      @keyframes vibe-scale-in {
+        from { opacity: 0; transform: scale(0.95) translateY(8px); }
+        to { opacity: 1; transform: scale(1) translateY(0); }
+      }
+    `;
+      document.head.appendChild(style);
     }
     createPreviewBanner() {
       if (this.previewBanner || !this.previewCommentId) return;
