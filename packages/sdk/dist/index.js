@@ -19912,6 +19912,7 @@ var OverlayModule = class {
   constructor(supabase, projectId) {
     this.comments = [];
     this.isActive = false;
+    this.modalOpen = false;
     this.isPreviewMode = false;
     this.previewCommentId = null;
     this.supabase = supabase;
@@ -19937,6 +19938,10 @@ var OverlayModule = class {
       document.body.removeChild(this.overlay);
       this.overlay = void 0;
     }
+    if (this.highlight) {
+      document.body.removeChild(this.highlight);
+      this.highlight = void 0;
+    }
     if (this.previewBanner) {
       document.body.removeChild(this.previewBanner);
       this.previewBanner = void 0;
@@ -19960,6 +19965,18 @@ var OverlayModule = class {
       z-index: 999999;
     `;
     document.body.appendChild(this.overlay);
+    this.highlight = document.createElement("div");
+    this.highlight.id = "vibe-highlight";
+    this.highlight.style.cssText = `
+      position: fixed;
+      pointer-events: none;
+      z-index: 999998;
+      border: 2px solid #3b82f6;
+      border-radius: 2px;
+      display: none;
+      transition: top 0.05s, left 0.05s, width 0.05s, height 0.05s;
+    `;
+    document.body.appendChild(this.highlight);
   }
   attachEventListeners() {
     document.addEventListener("click", this.handleElementClick.bind(this), true);
@@ -19976,22 +19993,37 @@ var OverlayModule = class {
   }
   handleElementClick(event) {
     const target = event.target;
-    if (this.isVibeElement(target)) return;
+    if (this.isVibeElement(target) || this.modalOpen) return;
     event.preventDefault();
     event.stopPropagation();
+    this.hideHighlight();
     this.showCommentModal(target, event.clientX, event.clientY);
   }
   handleElementHover(event) {
     const target = event.target;
-    if (this.isVibeElement(target)) return;
-    target.style.outline = "2px solid #3b82f6";
-    target.style.outlineOffset = "2px";
+    if (this.isVibeElement(target) || this.modalOpen) {
+      this.hideHighlight();
+      return;
+    }
+    const rect = target.getBoundingClientRect();
+    if (this.highlight) {
+      this.highlight.style.display = "block";
+      this.highlight.style.top = `${rect.top}px`;
+      this.highlight.style.left = `${rect.left}px`;
+      this.highlight.style.width = `${rect.width}px`;
+      this.highlight.style.height = `${rect.height}px`;
+    }
   }
   handleElementHoverOut(event) {
-    const target = event.target;
-    if (this.isVibeElement(target)) return;
-    target.style.outline = "";
-    target.style.outlineOffset = "";
+    const related = event.relatedTarget;
+    if (!related || related === document.documentElement) {
+      this.hideHighlight();
+    }
+  }
+  hideHighlight() {
+    if (this.highlight) {
+      this.highlight.style.display = "none";
+    }
   }
   showCommentModal(element, x, y) {
     const modal = document.createElement("div");
@@ -20063,10 +20095,13 @@ var OverlayModule = class {
       const content2 = form.querySelector("textarea").value;
       await this.createComment(element, content2, x, y);
       document.body.removeChild(modal);
+      this.modalOpen = false;
     });
     form.querySelector(".cancel")?.addEventListener("click", () => {
       document.body.removeChild(modal);
+      this.modalOpen = false;
     });
+    this.modalOpen = true;
     modal.appendChild(form);
     document.body.appendChild(modal);
     const textarea = form.querySelector("textarea");
@@ -20253,7 +20288,9 @@ var OverlayModule = class {
     `;
     modal.querySelector(".close")?.addEventListener("click", () => {
       document.body.removeChild(modal);
+      this.modalOpen = false;
     });
+    this.modalOpen = true;
     document.body.appendChild(modal);
   }
   createPreviewBanner() {

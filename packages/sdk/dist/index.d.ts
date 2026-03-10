@@ -180,10 +180,12 @@ declare class OverlayModule {
     private supabase;
     private projectId;
     private overlay?;
+    private highlight?;
     private previewBanner?;
     private previewModule;
     private comments;
     private isActive;
+    private modalOpen;
     private isPreviewMode;
     private previewCommentId;
     constructor(supabase: SupabaseClient, projectId: string);
@@ -196,6 +198,7 @@ declare class OverlayModule {
     private handleElementClick;
     private handleElementHover;
     private handleElementHoverOut;
+    private hideHighlight;
     private showCommentModal;
     private createComment;
     private getElementSelector;
