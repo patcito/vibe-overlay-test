@@ -20220,128 +20220,102 @@ ${suffix}`;
       top: ${top}px;
       width: ${modalWidth}px;
       z-index: 10000001;
-      background: rgba(24, 24, 27, 0.97);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 14px;
-      padding: 20px;
-      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.05) inset;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15), 0 4px 12px rgba(0, 0, 0, 0.1);
       animation: vibe-scale-in 0.15s cubic-bezier(0.16, 1, 0.3, 1);
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
     `;
-      modal.addEventListener("click", (e2) => e2.stopPropagation(), true);
-      modal.addEventListener("mousedown", (e2) => e2.stopPropagation(), true);
-      modal.addEventListener("keydown", (e2) => e2.stopPropagation(), true);
-      modal.addEventListener("input", (e2) => e2.stopPropagation(), true);
       const selectorPreview = this.getElementSelector(element);
       const shortSelector = selectorPreview.length > 40 ? "..." + selectorPreview.slice(-37) : selectorPreview;
       const form = document.createElement("form");
-      form.innerHTML = `
-      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px;">
-        <div style="width: 28px; height: 28px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        </div>
-        <div style="min-width: 0; flex: 1;">
-          <span style="font-size: 14px; font-weight: 600; color: #fafafa;">Comment</span>
-          <span style="font-size: 10px; color: rgba(255,255,255,0.25); font-family: monospace; margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${shortSelector}</span>
-        </div>
-      </div>
-      <textarea
-        placeholder="Describe the change you'd like to see..."
-        required
-        style="
-          width: 100%;
-          height: 80px;
-          padding: 10px 12px;
-          background: rgba(255, 255, 255, 0.06);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 10px;
-          resize: none;
-          margin-bottom: 12px;
-          box-sizing: border-box;
-          font-family: inherit;
-          font-size: 13px;
-          color: #fafafa;
-          outline: none;
-          transition: border-color 0.15s, box-shadow 0.15s;
-          line-height: 1.5;
-        "
-        onfocus="this.style.borderColor='rgba(99,102,241,0.6)';this.style.boxShadow='0 0 0 3px rgba(99,102,241,0.15)'"
-        onblur="this.style.borderColor='rgba(255,255,255,0.1)';this.style.boxShadow='none'"
-      ></textarea>
-      <div style="display: flex; gap: 8px;">
-        <button
-          type="submit"
-          style="
-            flex: 1;
-            padding: 9px;
-            background: linear-gradient(135deg, #3b82f6, #6366f1);
-            color: white;
-            border: none;
-            border-radius: 9px;
-            cursor: pointer;
-            font-size: 13px;
-            font-weight: 500;
-            transition: opacity 0.15s, transform 0.1s;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,255,255,0.1) inset;
-          "
-          onmouseover="this.style.opacity='0.9'"
-          onmouseout="this.style.opacity='1'"
-          onmousedown="this.style.transform='scale(0.98)'"
-          onmouseup="this.style.transform='scale(1)'"
-        >Post</button>
-        <button
-          type="button"
-          class="cancel"
-          style="
-            padding: 9px 16px;
-            background: rgba(255, 255, 255, 0.06);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            color: rgba(255,255,255,0.5);
-            border-radius: 9px;
-            cursor: pointer;
-            font-size: 13px;
-            transition: background 0.15s, color 0.15s;
-          "
-          onmouseover="this.style.background='rgba(255,255,255,0.1)';this.style.color='rgba(255,255,255,0.8)'"
-          onmouseout="this.style.background='rgba(255,255,255,0.06)';this.style.color='rgba(255,255,255,0.5)'"
-        >Cancel</button>
-      </div>
+      const header = document.createElement("div");
+      header.style.cssText = "display: flex; align-items: center; gap: 8px; margin-bottom: 12px;";
+      const icon = document.createElement("div");
+      icon.style.cssText = "width: 28px; height: 28px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;";
+      icon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+      const title = document.createElement("span");
+      title.style.cssText = "font-size: 14px; font-weight: 600; color: #1a1a2e;";
+      title.textContent = "Add comment";
+      header.appendChild(icon);
+      header.appendChild(title);
+      form.appendChild(header);
+      const textarea = document.createElement("textarea");
+      textarea.placeholder = "Describe the change you'd like to see...";
+      textarea.required = true;
+      textarea.style.cssText = `
+      width: 100%; height: 80px; padding: 10px 12px;
+      background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+      resize: none; margin-bottom: 12px; box-sizing: border-box;
+      font-family: inherit; font-size: 13px; color: #1a1a2e;
+      outline: none; line-height: 1.5;
     `;
+      textarea.addEventListener("focus", () => {
+        textarea.style.borderColor = "#6366f1";
+        textarea.style.boxShadow = "0 0 0 3px rgba(99,102,241,0.15)";
+      });
+      textarea.addEventListener("blur", () => {
+        textarea.style.borderColor = "#e2e8f0";
+        textarea.style.boxShadow = "none";
+      });
+      form.appendChild(textarea);
+      const selectorEl = document.createElement("div");
+      selectorEl.style.cssText = "margin-bottom: 12px; font-size: 10px; color: #94a3b8; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;";
+      selectorEl.textContent = shortSelector;
+      form.appendChild(selectorEl);
+      const btnRow = document.createElement("div");
+      btnRow.style.cssText = "display: flex; gap: 8px;";
+      const submitBtn = document.createElement("button");
+      submitBtn.type = "submit";
+      submitBtn.textContent = "Post";
+      submitBtn.style.cssText = `
+      flex: 1; padding: 9px; background: linear-gradient(135deg, #3b82f6, #6366f1);
+      color: white; border: none; border-radius: 8px; cursor: pointer;
+      font-size: 13px; font-weight: 500;
+    `;
+      const cancelBtn = document.createElement("button");
+      cancelBtn.type = "button";
+      cancelBtn.textContent = "Cancel";
+      cancelBtn.style.cssText = `
+      padding: 9px 16px; background: #f1f5f9; border: 1px solid #e2e8f0;
+      color: #64748b; border-radius: 8px; cursor: pointer; font-size: 13px;
+    `;
+      btnRow.appendChild(submitBtn);
+      btnRow.appendChild(cancelBtn);
+      form.appendChild(btnRow);
+      modal.appendChild(form);
       const closeModal = () => {
+        document.removeEventListener("keydown", onEsc);
+        document.removeEventListener("mousedown", onClickOutside);
         if (modal.parentNode) modal.parentNode.removeChild(modal);
         this.setCommentMode(true);
       };
       form.addEventListener("submit", async (e2) => {
         e2.preventDefault();
-        const content2 = form.querySelector("textarea").value;
-        const submitBtn = form.querySelector('button[type="submit"]');
+        const content2 = textarea.value;
         submitBtn.textContent = "Posting...";
         submitBtn.disabled = true;
         await this.createComment(element, content2, clickX, clickY);
+        document.removeEventListener("keydown", onEsc);
+        document.removeEventListener("mousedown", onClickOutside);
         if (modal.parentNode) modal.parentNode.removeChild(modal);
         this.setCommentMode(true);
       });
-      form.querySelector(".cancel")?.addEventListener("click", closeModal);
+      cancelBtn.addEventListener("click", closeModal);
       const onEsc = (e2) => {
-        if (e2.key === "Escape") {
-          document.removeEventListener("keydown", onEsc);
-          closeModal();
-        }
+        if (e2.key === "Escape") closeModal();
       };
       document.addEventListener("keydown", onEsc);
       const onClickOutside = (e2) => {
-        if (!modal.contains(e2.target)) {
-          document.removeEventListener("click", onClickOutside, true);
-          closeModal();
-        }
+        if (!modal.contains(e2.target)) closeModal();
       };
       setTimeout(() => {
-        document.addEventListener("click", onClickOutside, true);
-      }, 50);
+        document.addEventListener("mousedown", onClickOutside);
+      }, 100);
       document.body.appendChild(modal);
-      setTimeout(() => {
-        form.querySelector("textarea")?.focus();
-      }, 50);
+      textarea.focus();
     }
     async createComment(element, content2, x, y) {
       try {
