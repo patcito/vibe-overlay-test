@@ -20008,7 +20008,7 @@ ${suffix}`;
     constructor(supabase, projectId) {
       this.comments = [];
       this.isActive = false;
-      this.modalOpen = false;
+      this.commentMode = false;
       this.isPreviewMode = false;
       this.previewCommentId = null;
       this.supabase = supabase;
@@ -20016,10 +20016,15 @@ ${suffix}`;
       this.previewModule = new PreviewModule();
       this.isPreviewMode = PreviewModule.shouldActivatePreviewMode();
       this.previewCommentId = PreviewModule.getCommentIdFromUrl();
+      this.boundHandleClick = this.handleElementClick.bind(this);
+      this.boundHandleHover = this.handleElementHover.bind(this);
+      this.boundHandleHoverOut = this.handleElementHoverOut.bind(this);
     }
     async init() {
       if (this.isActive) return;
+      this.injectStyles();
       this.createOverlay();
+      this.createCommentButton();
       if (this.isPreviewMode) {
         this.previewModule.init();
         this.createPreviewBanner();
@@ -20038,6 +20043,10 @@ ${suffix}`;
         document.body.removeChild(this.highlight);
         this.highlight = void 0;
       }
+      if (this.commentBtn) {
+        document.body.removeChild(this.commentBtn);
+        this.commentBtn = void 0;
+      }
       if (this.previewBanner) {
         document.body.removeChild(this.previewBanner);
         this.previewBanner = void 0;
@@ -20051,6 +20060,7 @@ ${suffix}`;
     createOverlay() {
       this.overlay = document.createElement("div");
       this.overlay.id = "vibe-overlay";
+      this.overlay.setAttribute("data-vibe", "true");
       this.overlay.style.cssText = `
       position: fixed;
       top: 0;
@@ -20063,49 +20073,107 @@ ${suffix}`;
       document.body.appendChild(this.overlay);
       this.highlight = document.createElement("div");
       this.highlight.id = "vibe-highlight";
+      this.highlight.setAttribute("data-vibe", "true");
       this.highlight.style.cssText = `
       position: fixed;
       pointer-events: none;
-      z-index: 999998;
+      z-index: 10000000;
       border: 2px solid #3b82f6;
       border-radius: 2px;
+      background: rgba(59, 130, 246, 0.08);
       display: none;
       transition: top 0.05s, left 0.05s, width 0.05s, height 0.05s;
     `;
       document.body.appendChild(this.highlight);
-      const guardStyle = document.createElement("style");
-      guardStyle.id = "vibe-highlight-guard";
-      guardStyle.textContent = `
-      body:has([data-vibe-modal]) #vibe-highlight { display: none !important; }
+    }
+    createCommentButton() {
+      this.commentBtn = document.createElement("div");
+      this.commentBtn.id = "vibe-comment-btn";
+      this.commentBtn.setAttribute("data-vibe", "true");
+      this.commentBtn.style.cssText = `
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #3b82f6, #6366f1);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 999999;
+      box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4), 0 0 0 1px rgba(255,255,255,0.1) inset;
+      transition: transform 0.15s, box-shadow 0.15s;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     `;
-      document.head.appendChild(guardStyle);
+      this.commentBtn.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`;
+      this.commentBtn.addEventListener("mouseenter", () => {
+        this.commentBtn.style.transform = "scale(1.08)";
+        this.commentBtn.style.boxShadow = "0 6px 24px rgba(99, 102, 241, 0.5), 0 0 0 1px rgba(255,255,255,0.15) inset";
+      });
+      this.commentBtn.addEventListener("mouseleave", () => {
+        this.commentBtn.style.transform = "scale(1)";
+        this.commentBtn.style.boxShadow = "0 4px 16px rgba(99, 102, 241, 0.4), 0 0 0 1px rgba(255,255,255,0.1) inset";
+      });
+      this.commentBtn.addEventListener("click", () => {
+        this.toggleCommentMode();
+      });
+      document.body.appendChild(this.commentBtn);
+    }
+    toggleCommentMode() {
+      this.commentMode = !this.commentMode;
+      this.updateCommentButtonState();
+      if (!this.commentMode) {
+        this.hideHighlight();
+      }
+    }
+    setCommentMode(on) {
+      this.commentMode = on;
+      this.updateCommentButtonState();
+      if (!on) {
+        this.hideHighlight();
+      }
+    }
+    updateCommentButtonState() {
+      if (!this.commentBtn) return;
+      if (this.commentMode) {
+        this.commentBtn.style.background = "linear-gradient(135deg, #ef4444, #f97316)";
+        this.commentBtn.style.boxShadow = "0 4px 16px rgba(239, 68, 68, 0.5), 0 0 0 1px rgba(255,255,255,0.1) inset";
+        this.commentBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+        document.body.style.cursor = "crosshair";
+      } else {
+        this.commentBtn.style.background = "linear-gradient(135deg, #3b82f6, #6366f1)";
+        this.commentBtn.style.boxShadow = "0 4px 16px rgba(99, 102, 241, 0.4), 0 0 0 1px rgba(255,255,255,0.1) inset";
+        this.commentBtn.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`;
+        document.body.style.cursor = "";
+      }
     }
     attachEventListeners() {
-      document.addEventListener("click", this.handleElementClick.bind(this), true);
-      document.addEventListener("mouseover", this.handleElementHover.bind(this));
-      document.addEventListener("mouseout", this.handleElementHoverOut.bind(this));
+      document.addEventListener("click", this.boundHandleClick, true);
+      document.addEventListener("mouseover", this.boundHandleHover);
+      document.addEventListener("mouseout", this.boundHandleHoverOut);
     }
     removeEventListeners() {
-      document.removeEventListener("click", this.handleElementClick.bind(this), true);
-      document.removeEventListener("mouseover", this.handleElementHover.bind(this));
-      document.removeEventListener("mouseout", this.handleElementHoverOut.bind(this));
+      document.removeEventListener("click", this.boundHandleClick, true);
+      document.removeEventListener("mouseover", this.boundHandleHover);
+      document.removeEventListener("mouseout", this.boundHandleHoverOut);
     }
     isVibeElement(el) {
-      return !!(el.closest("#vibe-overlay") || el.closest("[data-vibe-modal]") || el.closest("#vibe-preview-banner") || el.closest("[data-vibe-toolbar]"));
+      return !!(el.closest("[data-vibe]") || el.closest("[data-vibe-modal]"));
     }
     handleElementClick(event) {
+      if (!this.commentMode) return;
       const target = event.target;
-      if (this.isVibeElement(target) || this.modalOpen) return;
+      if (this.isVibeElement(target)) return;
       event.preventDefault();
       event.stopPropagation();
-      this.hideHighlight();
+      this.setCommentMode(false);
       this.showCommentModal(target, event.clientX, event.clientY);
     }
     handleElementHover(event) {
-      if (this.modalOpen || !this.highlight) {
-        this.hideHighlight();
-        return;
-      }
+      if (!this.commentMode || !this.highlight) return;
       const target = event.target;
       if (this.isVibeElement(target)) {
         this.hideHighlight();
@@ -20119,6 +20187,7 @@ ${suffix}`;
       this.highlight.style.height = `${rect.height}px`;
     }
     handleElementHoverOut(event) {
+      if (!this.commentMode) return;
       const related = event.relatedTarget;
       if (!related || related === document.documentElement) {
         this.hideHighlight();
@@ -20129,46 +20198,47 @@ ${suffix}`;
         this.highlight.style.display = "none";
       }
     }
-    showCommentModal(element, x, y) {
-      this.injectStyles();
-      const backdrop = document.createElement("div");
-      backdrop.setAttribute("data-vibe-modal", "true");
-      backdrop.style.cssText = `
+    showCommentModal(element, clickX, clickY) {
+      const modalWidth = 380;
+      const modalHeight = 260;
+      const padding = 12;
+      let left = clickX;
+      let top = clickY + padding;
+      if (left + modalWidth > window.innerWidth - padding) {
+        left = window.innerWidth - modalWidth - padding;
+      }
+      if (left < padding) left = padding;
+      if (top + modalHeight > window.innerHeight - padding) {
+        top = clickY - modalHeight - padding;
+      }
+      if (top < padding) top = padding;
+      const modal = document.createElement("div");
+      modal.setAttribute("data-vibe-modal", "true");
+      modal.style.cssText = `
       position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.4);
-      backdrop-filter: blur(4px);
-      -webkit-backdrop-filter: blur(4px);
-      z-index: 1000000;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      animation: vibe-fade-in 0.15s ease-out;
+      left: ${left}px;
+      top: ${top}px;
+      width: ${modalWidth}px;
+      z-index: 10000001;
+      background: rgba(24, 24, 27, 0.97);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.05) inset;
+      animation: vibe-scale-in 0.15s cubic-bezier(0.16, 1, 0.3, 1);
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
     `;
-      const modal = document.createElement("div");
-      modal.style.cssText = `
-      background: rgba(24, 24, 27, 0.95);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 16px;
-      padding: 28px;
-      max-width: 420px;
-      width: 90%;
-      box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255,255,255,0.05) inset;
-      animation: vibe-scale-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-      pointer-events: all;
-    `;
       const selectorPreview = this.getElementSelector(element);
-      const shortSelector = selectorPreview.length > 50 ? "..." + selectorPreview.slice(-47) : selectorPreview;
+      const shortSelector = selectorPreview.length > 40 ? "..." + selectorPreview.slice(-37) : selectorPreview;
       const form = document.createElement("form");
       form.innerHTML = `
-      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
-        <div style="width: 36px; height: 36px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px;">
+        <div style="width: 28px; height: 28px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         </div>
-        <div>
-          <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: #fafafa; letter-spacing: -0.02em;">Add Comment</h3>
-          <p style="margin: 2px 0 0; font-size: 11px; color: rgba(255,255,255,0.3); font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 300px;">${shortSelector}</p>
+        <div style="min-width: 0; flex: 1;">
+          <span style="font-size: 14px; font-weight: 600; color: #fafafa;">Comment</span>
+          <span style="font-size: 10px; color: rgba(255,255,255,0.25); font-family: monospace; margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${shortSelector}</span>
         </div>
       </div>
       <textarea
@@ -20176,16 +20246,16 @@ ${suffix}`;
         required
         style="
           width: 100%;
-          height: 100px;
-          padding: 12px 14px;
+          height: 80px;
+          padding: 10px 12px;
           background: rgba(255, 255, 255, 0.06);
           border: 1px solid rgba(255, 255, 255, 0.1);
           border-radius: 10px;
-          resize: vertical;
-          margin-bottom: 16px;
+          resize: none;
+          margin-bottom: 12px;
           box-sizing: border-box;
           font-family: inherit;
-          font-size: 14px;
+          font-size: 13px;
           color: #fafafa;
           outline: none;
           transition: border-color 0.15s, box-shadow 0.15s;
@@ -20199,11 +20269,11 @@ ${suffix}`;
           type="submit"
           style="
             flex: 1;
-            padding: 11px;
+            padding: 9px;
             background: linear-gradient(135deg, #3b82f6, #6366f1);
             color: white;
             border: none;
-            border-radius: 10px;
+            border-radius: 9px;
             cursor: pointer;
             font-size: 13px;
             font-weight: 500;
@@ -20214,16 +20284,16 @@ ${suffix}`;
           onmouseout="this.style.opacity='1'"
           onmousedown="this.style.transform='scale(0.98)'"
           onmouseup="this.style.transform='scale(1)'"
-        >Comment</button>
+        >Post</button>
         <button
           type="button"
           class="cancel"
           style="
-            padding: 11px 20px;
+            padding: 9px 16px;
             background: rgba(255, 255, 255, 0.06);
             border: 1px solid rgba(255, 255, 255, 0.1);
             color: rgba(255,255,255,0.5);
-            border-radius: 10px;
+            border-radius: 9px;
             cursor: pointer;
             font-size: 13px;
             transition: background 0.15s, color 0.15s;
@@ -20233,33 +20303,41 @@ ${suffix}`;
         >Cancel</button>
       </div>
     `;
+      const closeModal = () => {
+        if (modal.parentNode) modal.parentNode.removeChild(modal);
+        this.setCommentMode(true);
+      };
       form.addEventListener("submit", async (e2) => {
         e2.preventDefault();
         const content2 = form.querySelector("textarea").value;
         const submitBtn = form.querySelector('button[type="submit"]');
         submitBtn.textContent = "Posting...";
         submitBtn.disabled = true;
-        await this.createComment(element, content2, x, y);
-        document.body.removeChild(backdrop);
-        this.modalOpen = false;
+        await this.createComment(element, content2, clickX, clickY);
+        if (modal.parentNode) modal.parentNode.removeChild(modal);
+        this.setCommentMode(true);
       });
-      form.querySelector(".cancel")?.addEventListener("click", () => {
-        document.body.removeChild(backdrop);
-        this.modalOpen = false;
-      });
-      backdrop.addEventListener("click", (e2) => {
-        if (e2.target === backdrop) {
-          document.body.removeChild(backdrop);
-          this.modalOpen = false;
+      form.querySelector(".cancel")?.addEventListener("click", closeModal);
+      const onEsc = (e2) => {
+        if (e2.key === "Escape") {
+          document.removeEventListener("keydown", onEsc);
+          closeModal();
         }
-      });
-      this.modalOpen = true;
-      modal.appendChild(form);
-      backdrop.appendChild(modal);
-      document.body.appendChild(backdrop);
+      };
+      document.addEventListener("keydown", onEsc);
+      const onClickOutside = (e2) => {
+        if (!modal.contains(e2.target)) {
+          document.removeEventListener("click", onClickOutside, true);
+          closeModal();
+        }
+      };
+      setTimeout(() => {
+        document.addEventListener("click", onClickOutside, true);
+      }, 50);
+      document.body.appendChild(modal);
       setTimeout(() => {
         form.querySelector("textarea")?.focus();
-      }, 100);
+      }, 50);
     }
     async createComment(element, content2, x, y) {
       try {
@@ -20275,12 +20353,11 @@ ${suffix}`;
           screenshotUrl = await uploadScreenshot(blob, this.supabase);
           URL.revokeObjectURL(blobUrl);
         } catch (error2) {
-          console.warn("Failed to capture and upload screenshot:", error2);
+          console.warn("Failed to capture screenshot:", error2);
         }
         const { data, error } = await this.supabase.from("comments").insert({
           project_id: this.projectId,
           page_id: null,
-          // For agentic mode, we don't have page_id
           content: content2,
           x,
           y,
@@ -20296,7 +20373,6 @@ ${suffix}`;
         this.renderCommentPins();
       } catch (error) {
         console.error("Error creating comment:", error);
-        alert("Failed to create comment: " + error.message);
       }
     }
     getElementSelector(element) {
@@ -20309,7 +20385,7 @@ ${suffix}`;
           path.unshift(selector);
           break;
         }
-        if (current.className) {
+        if (current.className && typeof current.className === "string") {
           const classes = current.className.split(" ").filter(Boolean);
           if (classes.length > 0) {
             selector += "." + classes.join(".");
@@ -20332,13 +20408,10 @@ ${suffix}`;
         let index = 1;
         let sibling = current.previousElementSibling;
         while (sibling) {
-          if (sibling.tagName === current.tagName) {
-            index++;
-          }
+          if (sibling.tagName === current.tagName) index++;
           sibling = sibling.previousElementSibling;
         }
-        const tagName = current.tagName.toLowerCase();
-        path.unshift(`${tagName}[${index}]`);
+        path.unshift(`${current.tagName.toLowerCase()}[${index}]`);
         current = current.parentElement;
       }
       return "/" + path.join("/");
@@ -20376,6 +20449,7 @@ ${suffix}`;
         if (!targetElement) return;
         const rect = targetElement.getBoundingClientRect();
         const pin = document.createElement("div");
+        pin.setAttribute("data-vibe", "true");
         pin.style.cssText = `
         position: absolute;
         left: ${rect.left + window.scrollX}px;
@@ -20404,7 +20478,6 @@ ${suffix}`;
       });
     }
     showCommentDetails(comment) {
-      this.injectStyles();
       const backdrop = document.createElement("div");
       backdrop.setAttribute("data-vibe-modal", "true");
       backdrop.style.cssText = `
@@ -20413,7 +20486,7 @@ ${suffix}`;
       background: rgba(0, 0, 0, 0.4);
       backdrop-filter: blur(4px);
       -webkit-backdrop-filter: blur(4px);
-      z-index: 1000000;
+      z-index: 10000001;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -20430,7 +20503,6 @@ ${suffix}`;
       width: 90%;
       box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255,255,255,0.05) inset;
       animation: vibe-scale-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-      pointer-events: all;
     `;
       const timeAgo = this.getTimeAgo(new Date(comment.created_at));
       modal.innerHTML = `
@@ -20464,17 +20536,13 @@ ${suffix}`;
         onmouseout="this.style.background='rgba(255,255,255,0.06)';this.style.color='rgba(255,255,255,0.6)'"
       >Close</button>
     `;
-      modal.querySelector(".close")?.addEventListener("click", () => {
-        document.body.removeChild(backdrop);
-        this.modalOpen = false;
-      });
+      const closeDetails = () => {
+        if (backdrop.parentNode) backdrop.parentNode.removeChild(backdrop);
+      };
+      modal.querySelector(".close")?.addEventListener("click", closeDetails);
       backdrop.addEventListener("click", (e2) => {
-        if (e2.target === backdrop) {
-          document.body.removeChild(backdrop);
-          this.modalOpen = false;
-        }
+        if (e2.target === backdrop) closeDetails();
       });
-      this.modalOpen = true;
       backdrop.appendChild(modal);
       document.body.appendChild(backdrop);
     }
@@ -20498,7 +20566,7 @@ ${suffix}`;
         to { opacity: 1; }
       }
       @keyframes vibe-scale-in {
-        from { opacity: 0; transform: scale(0.95) translateY(8px); }
+        from { opacity: 0; transform: scale(0.95) translateY(4px); }
         to { opacity: 1; transform: scale(1) translateY(0); }
       }
     `;
@@ -20508,6 +20576,7 @@ ${suffix}`;
       if (this.previewBanner || !this.previewCommentId) return;
       this.previewBanner = document.createElement("div");
       this.previewBanner.id = "vibe-preview-banner";
+      this.previewBanner.setAttribute("data-vibe", "true");
       this.previewBanner.style.cssText = `
       position: fixed;
       top: 0;
@@ -20534,92 +20603,35 @@ ${suffix}`;
           from { transform: translateY(-100%); }
           to { transform: translateY(0); }
         }
-        .vibe-banner-button {
-          transition: all 0.2s ease;
-        }
-        .vibe-banner-button:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-        }
       `;
         document.head.appendChild(styles);
       }
       const info = document.createElement("div");
-      info.style.cssText = `
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    `;
-      const icon = document.createElement("span");
-      icon.textContent = "\u{1F441}";
-      icon.style.fontSize = "16px";
-      const text = document.createElement("span");
-      text.textContent = `Preview for comment #${this.previewCommentId}`;
-      info.appendChild(icon);
-      info.appendChild(text);
+      info.style.cssText = "display: flex; align-items: center; gap: 8px;";
+      info.innerHTML = `<span>Preview for comment #${this.previewCommentId}</span>`;
       const actions = document.createElement("div");
-      actions.style.cssText = `
-      display: flex;
-      gap: 12px;
-      align-items: center;
-    `;
+      actions.style.cssText = "display: flex; gap: 12px; align-items: center;";
       const approveBtn = document.createElement("button");
-      approveBtn.className = "vibe-banner-button";
       approveBtn.textContent = "Approve";
       approveBtn.style.cssText = `
-      background: rgba(255, 255, 255, 0.2);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      color: white;
-      padding: 8px 16px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 13px;
-      font-weight: 500;
-      backdrop-filter: blur(8px);
+      background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3);
+      color: white; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500;
     `;
       const requestChangesBtn = document.createElement("button");
-      requestChangesBtn.className = "vibe-banner-button";
       requestChangesBtn.textContent = "Request Changes";
       requestChangesBtn.style.cssText = `
-      background: rgba(239, 68, 68, 0.9);
-      border: 1px solid rgba(239, 68, 68, 1);
-      color: white;
-      padding: 8px 16px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 13px;
-      font-weight: 500;
-    `;
-      const viewCommentBtn = document.createElement("button");
-      viewCommentBtn.className = "vibe-banner-button";
-      viewCommentBtn.textContent = "View Comment";
-      viewCommentBtn.style.cssText = `
-      background: transparent;
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      color: white;
-      padding: 8px 16px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 13px;
-      font-weight: 500;
+      background: rgba(239,68,68,0.9); border: 1px solid rgba(239,68,68,1);
+      color: white; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500;
     `;
       const closeBtn = document.createElement("button");
       closeBtn.innerHTML = "\xD7";
       closeBtn.style.cssText = `
-      background: transparent;
-      border: none;
-      color: rgba(255, 255, 255, 0.8);
-      font-size: 20px;
-      cursor: pointer;
-      padding: 4px 8px;
-      border-radius: 4px;
-      line-height: 1;
+      background: transparent; border: none; color: rgba(255,255,255,0.8);
+      font-size: 20px; cursor: pointer; padding: 4px 8px; line-height: 1;
     `;
       approveBtn.addEventListener("click", () => this.handlePreviewApproval(true));
       requestChangesBtn.addEventListener("click", () => this.handlePreviewApproval(false));
-      viewCommentBtn.addEventListener("click", () => this.openCommentThread());
       closeBtn.addEventListener("click", () => this.hidePreviewBanner());
-      actions.appendChild(viewCommentBtn);
       actions.appendChild(requestChangesBtn);
       actions.appendChild(approveBtn);
       actions.appendChild(closeBtn);
@@ -20632,48 +20644,25 @@ ${suffix}`;
     }
     handlePreviewApproval(approved) {
       if (!this.previewCommentId) return;
-      const action = approved ? "approve" : "request_changes";
-      const event = new CustomEvent("vibe:previewAction", {
-        detail: {
-          commentId: this.previewCommentId,
-          action,
-          approved
-        }
-      });
-      window.dispatchEvent(event);
+      window.dispatchEvent(new CustomEvent("vibe:previewAction", {
+        detail: { commentId: this.previewCommentId, action: approved ? "approve" : "request_changes", approved }
+      }));
       this.showPreviewActionFeedback(approved);
     }
     showPreviewActionFeedback(approved) {
       const feedback = document.createElement("div");
       feedback.style.cssText = `
-      position: fixed;
-      top: 60px;
-      right: 16px;
-      background: ${approved ? "#10b981" : "#ef4444"};
-      color: white;
-      padding: 12px 16px;
-      border-radius: 8px;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      font-size: 14px;
-      font-weight: 500;
-      z-index: 1000000;
-      animation: slideInRight 0.3s ease-out;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      position: fixed; top: 60px; right: 16px;
+      background: ${approved ? "#10b981" : "#ef4444"}; color: white;
+      padding: 12px 16px; border-radius: 8px; font-family: -apple-system, sans-serif;
+      font-size: 14px; font-weight: 500; z-index: 10000001;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     `;
-      feedback.textContent = approved ? "\u2713 Preview approved" : "\u26A0 Changes requested";
+      feedback.textContent = approved ? "Preview approved" : "Changes requested";
       document.body.appendChild(feedback);
       setTimeout(() => {
-        if (feedback.parentNode) {
-          feedback.parentNode.removeChild(feedback);
-        }
+        if (feedback.parentNode) feedback.parentNode.removeChild(feedback);
       }, 3e3);
-    }
-    openCommentThread() {
-      if (!this.previewCommentId) return;
-      const event = new CustomEvent("vibe:openComment", {
-        detail: { commentId: this.previewCommentId }
-      });
-      window.dispatchEvent(event);
     }
     hidePreviewBanner() {
       if (!this.previewBanner) return;
@@ -20682,7 +20671,6 @@ ${suffix}`;
       document.body.removeChild(this.previewBanner);
       this.previewBanner = void 0;
     }
-    // Public methods for preview functionality
     isInPreviewMode() {
       return this.isPreviewMode;
     }
