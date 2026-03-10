@@ -20073,6 +20073,12 @@ ${suffix}`;
       transition: top 0.05s, left 0.05s, width 0.05s, height 0.05s;
     `;
       document.body.appendChild(this.highlight);
+      const guardStyle = document.createElement("style");
+      guardStyle.id = "vibe-highlight-guard";
+      guardStyle.textContent = `
+      body:has([data-vibe-modal]) #vibe-highlight { display: none !important; }
+    `;
+      document.head.appendChild(guardStyle);
     }
     attachEventListeners() {
       document.addEventListener("click", this.handleElementClick.bind(this), true);
@@ -20096,19 +20102,21 @@ ${suffix}`;
       this.showCommentModal(target, event.clientX, event.clientY);
     }
     handleElementHover(event) {
+      if (this.modalOpen || !this.highlight) {
+        this.hideHighlight();
+        return;
+      }
       const target = event.target;
-      if (this.isVibeElement(target) || this.modalOpen) {
+      if (this.isVibeElement(target)) {
         this.hideHighlight();
         return;
       }
       const rect = target.getBoundingClientRect();
-      if (this.highlight) {
-        this.highlight.style.display = "block";
-        this.highlight.style.top = `${rect.top}px`;
-        this.highlight.style.left = `${rect.left}px`;
-        this.highlight.style.width = `${rect.width}px`;
-        this.highlight.style.height = `${rect.height}px`;
-      }
+      this.highlight.style.display = "block";
+      this.highlight.style.top = `${rect.top}px`;
+      this.highlight.style.left = `${rect.left}px`;
+      this.highlight.style.width = `${rect.width}px`;
+      this.highlight.style.height = `${rect.height}px`;
     }
     handleElementHoverOut(event) {
       const related = event.relatedTarget;
